@@ -86,7 +86,7 @@ app.post('/webhook', async (req, res) => {
 
 // --- 5. SEND MESSAGE BACK TO WHATSAPP ---
 async function sendWhatsAppMessage(toPhone, textMsg) {
-    const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
+    const url = const url = `https://graph.facebook.com/v20.0/1058678540664095/messages`;
     const payload = {
         messaging_product: "whatsapp",
         to: toPhone,
