@@ -97,7 +97,9 @@ app.post('/webhook', async (req, res) => {
 
 // --- 5. SEND MESSAGE BACK TO WHATSAPP ---
 async function sendWhatsAppMessage(toPhone, textMsg) {
-    const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
+    // We are hardcoding the ID here to ensure it NEVER says 'undefined' again
+    const url = `https://graph.facebook.com/v20.0/1058678540664095/messages`;
+    
     const payload = {
         messaging_product: "whatsapp",
         to: toPhone,
@@ -114,6 +116,7 @@ async function sendWhatsAppMessage(toPhone, textMsg) {
             },
             body: JSON.stringify(payload)
         });
+
         if(response.ok) {
             console.log(`✅ Reply successfully delivered!`);
         } else {
@@ -124,7 +127,6 @@ async function sendWhatsAppMessage(toPhone, textMsg) {
         console.error("❌ Network Error sending message:", err);
     }
 }
-
 // --- 6. SALES & MARKETING BRAIN (SOPHIA) ---
 async function routeToAgentTeam(messageText, phone) {
     try {
