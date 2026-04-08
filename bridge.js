@@ -105,6 +105,9 @@ async function sendWhatsAppMessage(toPhone, textMsg) {
         });
         if(response.ok) {
             console.log(`✅ Reply successfully delivered!`);
+        } else {
+            const errorData = await response.json();
+            console.error("❌ META API ERROR:", JSON.stringify(errorData));
         }
     } catch (err) {
         console.error("❌ Network Error sending message:", err);
