@@ -24,22 +24,33 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;const anthropic = new An
 
 // --- 📦 JPRESSO ADVANCED KNOWLEDGE BASE ---
 const JPRESSO_PRODUCTS = `
-1. ROASTING CAPABILITIES (For B2B/Cafe Clients): 
-- Equipment: 5kg Has Garanti (commercial batches), 1kg Bideli (specialty/micro-lots), Santoker (sample air roasting).
-- Style Specialization: Thermodynamics Style - we focus on maximizing origin characteristics, high sweetness, bright acidity, and a clean cup.
-- OEM Roasting Service: RM 15/kg (Min 5kg).
+=== ROASTING SERVICES (B2B) ===
+- OEM Roasting Service: RM 15/kg (Minimum order: 5kg). 
+- Equipment Used: 5kg Has Garanti, 1kg Bideli, Santoker.
+- Roasting Style: "Thermodynamics Style" (Maximizes origin traits, high sweetness, bright acidity, clean cup).
 
-2. RETAIL BEAN MENU:
-- Brazil Santos: RM 76/500g. Chocolatey, nutty. Great for espresso.
-- Ethiopia Yirgacheffe: RM 47/125g. Floral, Fruity. Perfect for filter/pour-over.
-- JPRESSO Signature Moon White Blend: RM 78/500g. Our cafe best-seller.
+=== RETAIL BEAN MENU (B2C) ===
+1. JPRESSO Signature Moon White Blend
+   - Price: RM 78 / 500g
+   - Best For: Cafe owners, Espresso milk-based drinks (Latte/Cappuccino).
+   - Notes: Our absolute best-seller. Smooth, balanced.
 
-3. BREWING ADVICE (If clients ask for tips):
-- Pour-over recommendation: Tetsu Kasuya 4:6 method (Use a coarse grind, pour in 5 stages to control the sweet/acidic balance).
+2. Brazil Santos
+   - Price: RM 76 / 500g
+   - Best For: Classic Espresso, Black coffee.
+   - Notes: Chocolatey, nutty, low acidity. 
+
+3. Ethiopia Yirgacheffe
+   - Price: RM 47 / 125g
+   - Best For: Filter / Pour-over.
+   - Notes: Floral, fruity, bright.
+
+=== BREWING ADVICE ===
+- Pour-over recommendation: Tetsu Kasuya 4:6 method.
+- Technique: Use a coarse grind and pour in 5 stages. This allows us to precisely control the sweet and acidic balance of the Jpresso beans.
 `;
 
 console.log("🚀 Jpresso OS Webhook Gateway (v119.0) Starting...");
-
 // --- 3. META VERIFICATION CHECK ---
 app.get('/webhook', (req, res) => {
     const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "Jpresso2026";
@@ -86,7 +97,7 @@ app.post('/webhook', async (req, res) => {
 
 // --- 5. SEND MESSAGE BACK TO WHATSAPP ---
 async function sendWhatsAppMessage(toPhone, textMsg) {
-    const url = `https://graph.facebook.com/v20.0/1058678540664095/messages`;
+    const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
     const payload = {
         messaging_product: "whatsapp",
         to: toPhone,
@@ -120,11 +131,18 @@ async function routeToAgentTeam(messageText, phone) {
         const msg = await anthropic.messages.create({
             model: "claude-haiku-4-5",
             max_tokens: 300,
-            system: `You are Sophia, the Sales & Marketing assistant for Big Jpresso in Malaysia. 
-            Use natural Manglish (boss, lah, can).
-            PRODUCT LIST: ${JPRESSO_PRODUCTS}
-            CONTEXT: In Malaysia, 'PM' means 'Private Message'—they want info or prices. 
-            Goal: Answer their request and ask if they want to order or visit the roastery.`,
+            system: `You are Sophia, the highly professional yet friendly Sales & Marketing assistant for Big Jpresso in Malaysia. 
+            
+            TONE: Use natural, polite Manglish (boss, lah, can). Be concise.
+
+            CRITICAL RULES:
+            1. ONLY recommend products explicitly listed in the JPRESSO_PRODUCTS list. 
+            2. If a customer asks for a bean we do not have (like Colombian or Decaf), politely say we don't carry it, and recommend our Signature Moon White Blend instead.
+            3. If asked for brewing advice, ONLY recommend the Tetsu Kasuya 4:6 method for pour-overs. Do not give generic coffee advice.
+            4. Always try to close the sale by asking if they want to place an order or visit our roastery in Kuala Lumpur.
+
+            PRODUCT KNOWLEDGE: 
+            ${JPRESSO_PRODUCTS}`,
             messages: [{ role: "user", content: messageText }]
         });
         
@@ -134,7 +152,6 @@ async function routeToAgentTeam(messageText, phone) {
         return "Sorry boss, brain taking coffee break. Let me get Jason to help!";
     }
 }
-
 // --- 7. AUTOMATED DAILY MARKETING (9 AM) ---
 cron.schedule('0 9 * * *', async () => {
     console.log("☀️ Jpresso Marketing Team is waking up...");
