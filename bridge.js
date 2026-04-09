@@ -194,7 +194,7 @@ async function syncLeadToSheet(leadData) {
 async function routeToAgentTeam(messageText, phone) {
     try {
         const msg = await anthropic.messages.create({
-            model: "claude-3-5-haiku-20241022", // Fixed Model Name
+            model: "claude-3-haiku-20240307", // Fixed Model Name
             max_tokens: 300,
             system: `You are Sophia, the highly professional yet friendly Sales & Marketing assistant for Big Jpresso in Malaysia. 
             
