@@ -62,51 +62,48 @@ app.get('/webhook', (req, res) => {
     }
 });
 
-// --- 4. THE MAIN WEBHOOK HANDLER ---
+// --- 4. RECEIVE INCOMING LEAD & LOG TO FILE ---
 app.post('/webhook', async (req, res) => {
-    const body = req.body;
+    try {
+        res.sendStatus(200); 
+        const body = req.body;
+        
+        if (body.object === 'whatsapp_business_account' && body.entry && body.entry[0].changes) {
+            const webhook_event = body.entry[0].changes[0].value.messages;
+            
+            if (webhook_event && webhook_event[0]) {
+                const messageData = webhook_event[0];
+                const senderNumber = messageData.from;
+                const messageText = messageData.text ? messageData.text.body : "No text";
+                
+                console.log(`\n📥 New Lead Incoming: +${senderNumber} - "${messageText}"`);
+                console.log("🧠 Sophia is analyzing the lead...");
 
-    if (body.object === 'whatsapp_business_account') {
-        try {
-            const entry = body.entry?.[0];
-            const changes = entry?.changes?.[0];
-            const message = changes?.value?.messages?.[0];
+                // 1. Get Sophia's expert coffee advice
+                const agentResponse = await routeToAgentTeam(messageText, senderNumber);
 
-            if (message?.text) {
-                const from = message.from; 
-                const messageText = message.text.body;
-
-                console.log(`📩 New Lead Incoming: ${from} - "${messageText}"`);
-                console.log(`🧠 Sophia is analyzing the lead...`);
-
-                // 1. Get Sophia's reply from Claude
-                const aiReply = await routeToAgentTeam(messageText, from);
-
-                // 2. Prepare the Lead Data
-                const lead = {
-                    timestamp: new Date().toISOString(),
-                    phone: from,
-                    message: messageText,
-                    reply: aiReply
+                // 2. Prepare the Lead Data (including Sophia's reply)
+                const leadEntry = { 
+                    phone: senderNumber, 
+                    msg: messageText, 
+                    reply: agentResponse, 
+                    time: new Date().toISOString() 
                 };
 
-                // 3. Save it locally (this is the line you already have)
-                saveLead(lead);
+                // 3. Save locally to leads.json (using the direct fs command)
+                fs.appendFileSync('leads.json', JSON.stringify(leadEntry) + '\n');
+                
+                // 4. 🔥 SYNC TO GOOGLE SHEETS (Make.com)
+                await syncLeadToSheet(leadEntry); 
+                
+                // 5. Send the reply back to the customer on WhatsApp
+                await sendWhatsAppMessage(senderNumber, agentResponse);
 
-                // 4. SYNC TO GOOGLE SHEETS (PASTE THE NEW LINE HERE!)
-                await syncLeadToSheet(lead); 
-
-                // 5. Send the reply back to the customer
-                await sendWhatsAppMessage(from, aiReply);
-
-                console.log(`📊 Lead saved and synced to Google Sheets.`);
+                console.log(`📊 Lead synced to Google Sheets. Reply delivered.`);
             }
-        } catch (error) {
-            console.error("❌ Webhook Error:", error.message);
         }
-        res.sendStatus(200);
-    } else {
-        res.sendStatus(404);
+    } catch (error) {
+        console.error("❌ Gateway Error:", error.message);
     }
 });
 
