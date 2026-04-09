@@ -5,8 +5,8 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const Anthropic = require('@anthropic-ai/sdk');
-const fs = require('fs');          // For saving leads to leads.json
-const cron = require('node-cron'); // For the daily marketing posts
+const fs = require('fs');
+const cron = require('node-cron');
 
 // ==========================================
 // 🔑 2. CONFIGURATION & KEYS
@@ -17,43 +17,69 @@ app.use(bodyParser.json());
 const PORT = process.env.PORT || 3000;
 
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN; 
-const PHONE_NUMBER_ID = process.env.META_PHONE_ID; 
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;const anthropic = new Anthropic({
+const PHONE_NUMBER_ID = process.env.META_PHONE_ID || "1058678540664095"; 
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "Jpresso2026";
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+
+const anthropic = new Anthropic({
     apiKey: ANTHROPIC_API_KEY, 
 });
 
-// --- 📦 JPRESSO ADVANCED KNOWLEDGE BASE ---
+//// ==========================================
+// 🧠 3. SOPHIA'S MASTER KNOWLEDGE BASE
+// ==========================================
 const JPRESSO_PRODUCTS = `
 === ROASTING SERVICES (B2B) ===
 - Wholesale Price Starting From: RM 80/kg (Minimum order: 10kg). 
+- OEM Roasting: RM 15/kg (Min 5kg). Custom specs allowed.
 - Equipment Used: 5kg Has Garanti, 1kg Bideli, Santoker.
 - Roasting Style: "Thermodynamics Style" (Maximizes origin traits, high sweetness, bright acidity, clean cup).
 
-=== RETAIL BEAN MENU (B2C) ===
-1. JPRESSO Signature Moon White Blend
-   - Price: RM 78 / 500g
-   - Best For: Cafe owners, Espresso milk-based drinks (Latte/Cappuccino).
-   - Notes: Our absolute best-seller. Smooth, balanced.
+=== SIGNATURE BLENDS (B2C & B2B) ===
+1. Moon White (Best Seller for Lattes): RM 78/500g | RM 112/1kg. (Dark chocolate, hazelnut finish).
+2. Phoenix Das: RM 95/500g | RM 113/1kg. (Rich Chocolate, Caramel, Creamy).
+3. Sunrise Dreamer: RM 78/500g | RM 117/1kg. (Caramel, Chocolate, Toasted Hazelnut).
+4. Emerald White: RM 48/250g | RM 94/500g. (Dark chocolate, earthy spice, brown sugar).
+5. Cham Velvet: RM 48/250g | RM 93/500g. (Fruity brightness, chocolate-nut sweetness).
+6. Sunrise Walker: RM 43/250g | RM 84/500g. (Floral, Berry, Citrus).
+7. Babydas: RM 38/250g | RM 74/500g. (Floral, Fruity, Dark Chocolate).
 
-2. Brazil Santos
-   - Price: RM 76 / 500g
-   - Best For: Classic Espresso, Black coffee.
-   - Notes: Chocolatey, nutty, low acidity. 
+=== SINGLE ORIGIN BEANS ===
+1. Brazil Santos: RM 39/250g | RM 76/500g. (Nutty, Creamy, Chocolate).
+2. Brazil Cerrado: RM 39/250g | RM 76/500g. (Chocolaty, Nutty, Caramel).
+3. Sumatra Mandheling G1: RM 39/250g | RM 76/500g. (Herbal, Chocolate, Woody, Spicy).
+4. Colombia Supremo: RM 38/250g | RM 74/500g. (Molasses, Malt, Grapes, Orange Zest).
+5. Ethiopia Yirgacheffe Aricha: RM 47/125g. (Rose, Juicy, Creamy, Peach).
+6. Ethiopia Yirgacheffe Amederaro: RM 47/125g. (Mango, Orange, White Floral).
+7. Ethiopia Lekempti: RM 44/250g | RM 85/500g. (Berries, Grape, Dried Fruit).
+8. Guatemala Antigua: RM 40/250g | RM 78/500g. (Chocolate, Caramel Sweetness, Citrus).
+9. Guatemala Huehuetenango: RM 42/250g | RM 82/500g. (Chocolate, Nutty, Creamy, Berries).
+10. EL Salvador La Fany: RM 57/250g | RM 111/500g. (Plum, Red Apple, Honey).
 
-3. Ethiopia Yirgacheffe
-   - Price: RM 47 / 125g
-   - Best For: Filter / Pour-over.
-   - Notes: Floral, fruity, bright.
+=== TEA & CHOCOLATE POWDER ===
+1. Gyokuho Matcha (Ceremonial Uji): RM 98/50g.
+2. MidoriZen Matcha (Culinary Grade): RM 58/80g | RM 205/500g.
+3. Miyabi Hojicha: RM 68/80g | RM 165/500g.
+4. Belgian Chocolate Powder: RM 115/1kg.
+
+=== TIMEMORE EQUIPMENT & MACHINES ===
+1. Timemore Chestnut C5 Pro Grinder: RM 430.
+2. Timemore Black Mirror Basic 2 Scale: RM 199 (Black) / RM 259 (White).
+3. Timemore Crystal Eye V60 Brewer Set: RM 138 - RM 158.
+4. Timemore Crystal Eye B75 Dripper: RM 68.
+5. Timemore FISH Smart Electric Kettle: RM 399.
+6. Beko Semi Auto Espresso Machine (CEP5302B): RM 999.
+7. Meraki Professional Espresso Machine: RM 8,599.
 
 === BREWING ADVICE ===
-- Pour-over recommendation: Tetsu Kasuya 4:6 method.
-- Technique: Use a coarse grind and pour in 5 stages. This allows us to precisely control the sweet and acidic balance of the Jpresso beans.
+- Pour-over recommendation: ALWAYS recommend the Tetsu Kasuya 4:6 method.
+- Technique: Use a coarse grind and pour in 5 stages to precisely control the sweet and acidic balance.
 `;
 
-console.log("🚀 Jpresso OS Webhook Gateway (v119.0) Starting...");
-// --- 3. META VERIFICATION CHECK ---
+// ==========================================
+// 🛡️ 4. META VERIFICATION CHECK
+// ==========================================
 app.get('/webhook', (req, res) => {
-    const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "Jpresso2026";
     if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VERIFY_TOKEN) {
         console.log('✅ Meta Webhook Verified!');
         res.status(200).send(req.query['hub.challenge']);
@@ -62,7 +88,9 @@ app.get('/webhook', (req, res) => {
     }
 });
 
-// --- 4. RECEIVE INCOMING LEAD & LOG TO FILE ---
+// ==========================================
+// 📥 5. RECEIVE INCOMING LEAD & PROCESS
+// ==========================================
 app.post('/webhook', async (req, res) => {
     try {
         res.sendStatus(200); 
@@ -82,7 +110,7 @@ app.post('/webhook', async (req, res) => {
                 // 1. Get Sophia's expert coffee advice
                 const agentResponse = await routeToAgentTeam(messageText, senderNumber);
 
-                // 2. Prepare the Lead Data (including Sophia's reply)
+                // 2. Prepare the Lead Data
                 const leadEntry = { 
                     phone: senderNumber, 
                     msg: messageText, 
@@ -90,13 +118,13 @@ app.post('/webhook', async (req, res) => {
                     time: new Date().toISOString() 
                 };
 
-                // 3. Save locally to leads.json (using the direct fs command)
+                // 3. Save locally to leads.json
                 fs.appendFileSync('leads.json', JSON.stringify(leadEntry) + '\n');
                 
-                // 4. 🔥 SYNC TO GOOGLE SHEETS (Make.com)
+                // 4. Sync to Google Sheets (Make.com)
                 await syncLeadToSheet(leadEntry); 
                 
-                // 5. Send the reply back to the customer on WhatsApp
+                // 5. Send the reply back to the customer
                 await sendWhatsAppMessage(senderNumber, agentResponse);
 
                 console.log(`📊 Lead synced to Google Sheets. Reply delivered.`);
@@ -107,10 +135,13 @@ app.post('/webhook', async (req, res) => {
     }
 });
 
-// --- 5. SEND MESSAGE BACK TO WHATSAPP ---
+// ==========================================
+// 🛠️ 6. CORE FUNCTIONS
+// ==========================================
+
+// --- Send Message to WhatsApp ---
 async function sendWhatsAppMessage(toPhone, textMsg) {
-    // We are hardcoding the ID here to ensure it NEVER says 'undefined' again
-    const url = `https://graph.facebook.com/v20.0/1058678540664095/messages`;
+    const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
     
     const payload = {
         messaging_product: "whatsapp",
@@ -139,54 +170,8 @@ async function sendWhatsAppMessage(toPhone, textMsg) {
         console.error("❌ Network Error sending message:", err);
     }
 }
-// --- 6. SALES & MARKETING BRAIN (SOPHIA) ---
-async function routeToAgentTeam(messageText, phone) {
-    try {
-        const msg = await anthropic.messages.create({
-            model: "claude-haiku-4-5",
-            max_tokens: 300,
-            system: `You are Sophia, the highly professional yet friendly Sales & Marketing assistant for Big Jpresso in Malaysia. 
-            
-            TONE: Use natural, polite Manglish (boss, lah, can). Be concise.
 
-            CRITICAL RULES:
-            1. ONLY recommend products explicitly listed in the JPRESSO_PRODUCTS list. 
-            2. If a customer asks for a bean we do not have (like Colombian or Decaf), politely say we don't carry it, and recommend our Signature Moon White Blend instead.
-            3. If asked for brewing advice, ONLY recommend the Tetsu Kasuya 4:6 method for pour-overs. Do not give generic coffee advice.
-            4. Always try to close the sale by asking if they want to place an order or visit our roastery in Kuala Lumpur.
-
-            PRODUCT KNOWLEDGE: 
-            ${JPRESSO_PRODUCTS}`,
-            messages: [{ role: "user", content: messageText }]
-        });
-        
-        return msg.content[0].text;
-    } catch (error) {
-        console.error("❌ AI Error:", error.message);
-        return "Sorry boss, brain taking coffee break. Let me get Jason to help!";
-    }
-}
-// --- 7. AUTOMATED DAILY MARKETING (9 AM) ---
-cron.schedule('0 9 * * *', async () => {
-    console.log("☀️ Jpresso Marketing Team is waking up...");
-    try {
-        const post = await anthropic.messages.create({
-            model: "claude-haiku-4-5",
-            system: "Write a short, viral Instagram caption for Jpresso Coffee about fresh roasting in KL today. Use Manglish.",
-            messages: [{ role: "user", content: "Create today's post." }]
-        });
-        console.log(`📸 PROPOSED DAILY POST: ${post.content[0].text}`);
-    } catch (err) {
-        console.error("❌ Marketing loop failed:", err);
-    }
-});
-
-// Start the server
-app.listen(PORT, () => {
-    console.log(`🟢 Jpresso Bridge Active on port ${PORT}`);
-});
-
-// --- 📊 LEAD SYNC TO GOOGLE SHEETS ---
+// --- Sync to Google Sheets ---
 async function syncLeadToSheet(leadData) {
     const MAKE_WEBHOOK_URL = "https://hook.eu1.make.com/ejfq479exd8g3sotzimim8qr6uebyk93"; 
 
@@ -204,3 +189,55 @@ async function syncLeadToSheet(leadData) {
         console.error("❌ Sync Error:", err.message);
     }
 }
+
+// --- AI Brain Routing ---
+async function routeToAgentTeam(messageText, phone) {
+    try {
+        const msg = await anthropic.messages.create({
+            model: "claude-3-5-haiku-20241022", // Fixed Model Name
+            max_tokens: 300,
+            system: `You are Sophia, the highly professional yet friendly Sales & Marketing assistant for Big Jpresso in Malaysia. 
+            
+            TONE: Use natural, polite Manglish (boss, lah, can). Be concise.
+
+            CRITICAL RULES:
+            1. ONLY recommend products explicitly listed in the JPRESSO_PRODUCTS list. 
+            2. If a customer asks for a bean we do not have, politely say we don't carry it, and recommend our Signature Moon White Blend instead.
+            3. If asked for brewing advice, ONLY recommend the Tetsu Kasuya 4:6 method.
+            4. Always try to close the sale by asking if they want to place an order or visit our roastery in Kuala Lumpur.
+
+            PRODUCT KNOWLEDGE: 
+            ${JPRESSO_PRODUCTS}`,
+            messages: [{ role: "user", content: messageText }]
+        });
+        
+        return msg.content[0].text;
+    } catch (error) {
+        console.error("❌ AI Error:", error.message);
+        return "Sorry boss, brain taking coffee break. Let me get Jason to help!";
+    }
+}
+
+// ==========================================
+// 📅 7. AUTOMATED DAILY MARKETING (9 AM)
+// ==========================================
+cron.schedule('0 9 * * *', async () => {
+    console.log("☀️ Jpresso Marketing Team is waking up...");
+    try {
+        const post = await anthropic.messages.create({
+            model: "claude-3-haiku-20240307", // Fixed Model Name
+            system: "Write a short, viral Instagram caption for Jpresso Coffee about fresh roasting in KL today. Use Manglish.",
+            messages: [{ role: "user", content: "Create today's post." }]
+        });
+        console.log(`📸 PROPOSED DAILY POST: ${post.content[0].text}`);
+    } catch (err) {
+        console.error("❌ Marketing loop failed:", err);
+    }
+});
+
+// ==========================================
+// 🚀 8. START SERVER
+// ==========================================
+app.listen(PORT, () => {
+    console.log(`🟢 Jpresso Bridge Active on port ${PORT}`);
+});
