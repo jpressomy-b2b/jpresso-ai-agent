@@ -25,7 +25,7 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;const anthropic = new An
 // --- 📦 JPRESSO ADVANCED KNOWLEDGE BASE ---
 const JPRESSO_PRODUCTS = `
 === ROASTING SERVICES (B2B) ===
-- OEM Roasting Service: RM 15/kg (Minimum order: 5kg). 
+- Wholesale Price Starting From: RM 80/kg (Minimum order: 10kg). 
 - Equipment Used: 5kg Has Garanti, 1kg Bideli, Santoker.
 - Roasting Style: "Thermodynamics Style" (Maximizes origin traits, high sweetness, bright acidity, clean cup).
 
