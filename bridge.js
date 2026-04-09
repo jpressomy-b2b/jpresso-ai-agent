@@ -62,36 +62,51 @@ app.get('/webhook', (req, res) => {
     }
 });
 
-// --- 4. RECEIVE INCOMING LEAD & LOG TO FILE ---
+// --- 4. THE MAIN WEBHOOK HANDLER ---
 app.post('/webhook', async (req, res) => {
-    try {
-        res.sendStatus(200); 
-        const body = req.body;
-        
-        if (body.object === 'whatsapp_business_account' && body.entry && body.entry[0].changes) {
-            const webhook_event = body.entry[0].changes[0].value.messages;
-            
-            if (webhook_event && webhook_event[0]) {
-                const messageData = webhook_event[0];
-                const senderNumber = messageData.from;
-                const messageText = messageData.text ? messageData.text.body : "No text";
-                
-                console.log(`\n📥 New Lead Incoming: +${senderNumber} - "${messageText}"`);
+    const body = req.body;
 
-                // --- 📝 AUTOMATIC LEAD CAPTURE ---
-                // This saves every customer number and message to a local file
-                const leadEntry = { phone: senderNumber, msg: messageText, time: new Date().toISOString() };
-                fs.appendFileSync('leads.json', JSON.stringify(leadEntry) + '\n');
-                
-                console.log("🧠 Sophia is analyzing the lead...");
-                const agentResponse = await routeToAgentTeam(messageText, senderNumber);
-                
-                await sendWhatsAppMessage(senderNumber, agentResponse);
-                console.log(`📊 Lead saved to leads.json and reply delivered.`);
+    if (body.object === 'whatsapp_business_account') {
+        try {
+            const entry = body.entry?.[0];
+            const changes = entry?.changes?.[0];
+            const message = changes?.value?.messages?.[0];
+
+            if (message?.text) {
+                const from = message.from; 
+                const messageText = message.text.body;
+
+                console.log(`📩 New Lead Incoming: ${from} - "${messageText}"`);
+                console.log(`🧠 Sophia is analyzing the lead...`);
+
+                // 1. Get Sophia's reply from Claude
+                const aiReply = await routeToAgentTeam(messageText, from);
+
+                // 2. Prepare the Lead Data
+                const lead = {
+                    timestamp: new Date().toISOString(),
+                    phone: from,
+                    message: messageText,
+                    reply: aiReply
+                };
+
+                // 3. Save it locally (this is the line you already have)
+                saveLead(lead);
+
+                // 4. SYNC TO GOOGLE SHEETS (PASTE THE NEW LINE HERE!)
+                await syncLeadToSheet(lead); 
+
+                // 5. Send the reply back to the customer
+                await sendWhatsAppMessage(from, aiReply);
+
+                console.log(`📊 Lead saved and synced to Google Sheets.`);
             }
+        } catch (error) {
+            console.error("❌ Webhook Error:", error.message);
         }
-    } catch (error) {
-        console.error("❌ Gateway Error:", error.message);
+        res.sendStatus(200);
+    } else {
+        res.sendStatus(404);
     }
 });
 
@@ -173,3 +188,22 @@ cron.schedule('0 9 * * *', async () => {
 app.listen(PORT, () => {
     console.log(`🟢 Jpresso Bridge Active on port ${PORT}`);
 });
+
+// --- 📊 LEAD SYNC TO GOOGLE SHEETS ---
+async function syncLeadToSheet(leadData) {
+    const MAKE_WEBHOOK_URL = "https://hook.eu1.make.com/ejfq479exd8g3sotzimim8qr6uebyk93"; 
+
+    try {
+        const response = await fetch(MAKE_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(leadData)
+        });
+
+        if (response.ok) {
+            console.log("✅ Lead successfully synced to Make.com!");
+        }
+    } catch (err) {
+        console.error("❌ Sync Error:", err.message);
+    }
+}
