@@ -8,7 +8,6 @@ const Anthropic = require('@anthropic-ai/sdk');
 const fs = require('fs');
 const cron = require('node-cron');
 
-// ==========================================
 // 🔑 2. CONFIGURATION & KEYS
 // ==========================================
 const app = express();
@@ -16,14 +15,19 @@ app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 3000;
 
+// WhatsApp Keys
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN; 
 const PHONE_NUMBER_ID = process.env.META_PHONE_ID || "1058678540664095"; 
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "Jpresso2026";
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
-const anthropic = new Anthropic({
-    apiKey: ANTHROPIC_API_KEY, 
-});
+// --- NEW: Instagram Keys ---
+// Add IG_ACCESS_TOKEN to your .env file with the long token you just generated!
+const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN; 
+
+// Verify Token (MUST match what you type in Meta Dashboard)
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "JpressoSophia2026"; 
+
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 //// ==========================================
 // 🧠 3. SOPHIA'S MASTER KNOWLEDGE BASE
@@ -77,9 +81,10 @@ const JPRESSO_PRODUCTS = `
 `;
 
 // ==========================================
-// 🛡️ 4. META VERIFICATION CHECK
+// 🛡️ 4. META VERIFICATION CHECK (Handshake)
 // ==========================================
 app.get('/webhook', (req, res) => {
+    // This now works for BOTH WhatsApp and Instagram apps
     if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VERIFY_TOKEN) {
         console.log('✅ Meta Webhook Verified!');
         res.status(200).send(req.query['hub.challenge']);
@@ -89,47 +94,45 @@ app.get('/webhook', (req, res) => {
 });
 
 // ==========================================
-// 📥 5. RECEIVE INCOMING LEAD & PROCESS
+// 📥 5. RECEIVE INCOMING MESSAGES
 // ==========================================
 app.post('/webhook', async (req, res) => {
     try {
-        res.sendStatus(200); 
         const body = req.body;
-        
-        if (body.object === 'whatsapp_business_account' && body.entry && body.entry[0].changes) {
-            const webhook_event = body.entry[0].changes[0].value.messages;
-            
-            if (webhook_event && webhook_event[0]) {
-                const messageData = webhook_event[0];
-                const senderNumber = messageData.from;
-                const messageText = messageData.text ? messageData.text.body : "No text";
-                
-                console.log(`\n📥 New Lead Incoming: +${senderNumber} - "${messageText}"`);
-                console.log("🧠 Sophia is analyzing the lead...");
+        res.sendStatus(200); 
 
-                // 1. Get Sophia's expert coffee advice
-                const agentResponse = await routeToAgentTeam(messageText, senderNumber);
-
-                // 2. Prepare the Lead Data
-                const leadEntry = { 
-                    phone: senderNumber, 
-                    msg: messageText, 
-                    reply: agentResponse, 
-                    time: new Date().toISOString() 
-                };
-
-                // 3. Save locally to leads.json
-                fs.appendFileSync('leads.json', JSON.stringify(leadEntry) + '\n');
+        // --- 🟢 CASE A: WHATSAPP MESSAGE ---
+        if (body.object === 'whatsapp_business_account') {
+            const webhook_event = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+            if (webhook_event) {
+                const senderNumber = webhook_event.from;
+                const messageText = webhook_event.text?.body || "No text";
                 
-                // 4. Sync to Google Sheets (Make.com)
-                await syncLeadToSheet(leadEntry); 
+                console.log(`\n📥 [WhatsApp] +${senderNumber}: "${messageText}"`);
+                const agentResponse = await routeToAgentTeam(messageText);
                 
-                // 5. Send the reply back to the customer
+                // Sync and Send
+                await syncLeadToSheet({ phone: senderNumber, msg: messageText, reply: agentResponse, platform: "WhatsApp" });
                 await sendWhatsAppMessage(senderNumber, agentResponse);
-
-                console.log(`📊 Lead synced to Google Sheets. Reply delivered.`);
             }
         }
+
+        // --- 🔵 NEW: CASE B: INSTAGRAM DM ---
+        if (body.object === 'instagram') {
+            const messagingEvent = body.entry?.[0]?.messaging?.[0];
+            if (messagingEvent && messagingEvent.message) {
+                const igSenderId = messagingEvent.sender.id;
+                const messageText = messagingEvent.message.text || "No text";
+
+                console.log(`\n📥 [Instagram] ID ${igSenderId}: "${messageText}"`);
+                const agentResponse = await routeToAgentTeam(messageText);
+
+                // Sync and Send
+                await syncLeadToSheet({ phone: igSenderId, msg: messageText, reply: agentResponse, platform: "Instagram" });
+                await sendInstagramMessage(igSenderId, agentResponse);
+            }
+        }
+
     } catch (error) {
         console.error("❌ Gateway Error:", error.message);
     }
@@ -139,38 +142,30 @@ app.post('/webhook', async (req, res) => {
 // 🛠️ 6. CORE FUNCTIONS
 // ==========================================
 
-// --- Send Message to WhatsApp ---
-async function sendWhatsAppMessage(toPhone, textMsg) {
-    const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
-    
+// --- NEW: Send Message to Instagram ---
+async function sendInstagramMessage(recipientId, textMsg) {
+    const url = `https://graph.facebook.com/v20.0/me/messages`; // 'me' uses the token's account
     const payload = {
-        messaging_product: "whatsapp",
-        to: toPhone,
-        type: "text",
-        text: { body: textMsg }
+        recipient: { id: recipientId },
+        message: { text: textMsg }
     };
 
     try {
         const response = await fetch(url, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${ACCESS_TOKEN}`,
+                'Authorization': `Bearer ${IG_ACCESS_TOKEN}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(payload)
         });
-
-        if(response.ok) {
-            console.log(`✅ Reply successfully delivered!`);
-        } else {
-            const errorData = await response.json();
-            console.error("❌ META API ERROR:", JSON.stringify(errorData));
-        }
+        if(response.ok) console.log(`✅ IG Reply delivered!`);
     } catch (err) {
-        console.error("❌ Network Error sending message:", err);
+        console.error("❌ IG API Error:", err);
     }
 }
 
+// (Keep your sendWhatsAppMessage, syncLeadToSheet, and routeToAgentTeam as they were...)
 // --- Sync to Google Sheets ---
 async function syncLeadToSheet(leadData) {
     const MAKE_WEBHOOK_URL = "https://hook.eu1.make.com/ejfq479exd8g3sotzimim8qr6uebyk93"; 
