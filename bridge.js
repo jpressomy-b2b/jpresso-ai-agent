@@ -211,7 +211,7 @@ async function syncLeadToSheet(leadData) {
 async function routeToAgentTeam(messageText) {
     try {
         const msg = await anthropic.messages.create({
-            model: "claude-3-5-sonnet-20241022", 
+            model: "claude-haiku-4-5", 
             max_tokens: 300,
             system: `You are Sophia, the highly professional yet friendly Sales & Marketing assistant for Big Jpresso in Malaysia. 
             
@@ -242,7 +242,7 @@ cron.schedule('0 9 * * *', async () => {
     console.log("☀️ Jpresso Marketing Team is waking up...");
     try {
         const post = await anthropic.messages.create({
-            model: "claude-3-5-sonnet-20241022", 
+            model: "claude-haiku-4-5", 
             system: "Write a short, viral Instagram caption for Jpresso Coffee about fresh roasting in KL today. Use Manglish.",
             messages: [{ role: "user", content: "Create today's post." }]
         });
