@@ -5,7 +5,6 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const Anthropic = require('@anthropic-ai/sdk');
-const fs = require('fs');
 const cron = require('node-cron');
 
 // 🔑 2. CONFIGURATION & KEYS
@@ -19,8 +18,7 @@ const PORT = process.env.PORT || 3000;
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN; 
 const PHONE_NUMBER_ID = process.env.META_PHONE_ID || "1058678540664095"; 
 
-// --- NEW: Instagram Keys ---
-// Add IG_ACCESS_TOKEN to your .env file with the long token you just generated!
+// Instagram Keys
 const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN; 
 
 // Verify Token (MUST match what you type in Meta Dashboard)
@@ -29,7 +27,7 @@ const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "JpressoSophia2026";
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
-//// ==========================================
+// ==========================================
 // 🧠 3. SOPHIA'S MASTER KNOWLEDGE BASE
 // ==========================================
 const JPRESSO_PRODUCTS = `
@@ -84,9 +82,7 @@ const JPRESSO_PRODUCTS = `
 // 🛡️ 4. META VERIFICATION CHECK (Handshake)
 // ==========================================
 app.get('/webhook', (req, res) => {
-    // 🔍 THIS IS THE NEW DEBUG LINE:
     console.log("🔍 Meta is asking to verify. Received Token:", req.query['hub.verify_token']);
-
     if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VERIFY_TOKEN) {
         console.log('✅ Meta Webhook Verified!');
         res.status(200).send(req.query['hub.challenge']);
@@ -113,13 +109,12 @@ app.post('/webhook', async (req, res) => {
                 console.log(`\n📥 [WhatsApp] +${senderNumber}: "${messageText}"`);
                 const agentResponse = await routeToAgentTeam(messageText);
                 
-                // Sync and Send
                 await syncLeadToSheet({ phone: senderNumber, msg: messageText, reply: agentResponse, platform: "WhatsApp" });
                 await sendWhatsAppMessage(senderNumber, agentResponse);
             }
         }
 
-        // --- 🔵 NEW: CASE B: INSTAGRAM DM ---
+        // --- 🔵 CASE B: INSTAGRAM DM ---
         if (body.object === 'instagram') {
             const messagingEvent = body.entry?.[0]?.messaging?.[0];
             if (messagingEvent && messagingEvent.message) {
@@ -129,7 +124,6 @@ app.post('/webhook', async (req, res) => {
                 console.log(`\n📥 [Instagram] ID ${igSenderId}: "${messageText}"`);
                 const agentResponse = await routeToAgentTeam(messageText);
 
-                // Sync and Send
                 await syncLeadToSheet({ phone: igSenderId, msg: messageText, reply: agentResponse, platform: "Instagram" });
                 await sendInstagramMessage(igSenderId, agentResponse);
             }
@@ -144,9 +138,35 @@ app.post('/webhook', async (req, res) => {
 // 🛠️ 6. CORE FUNCTIONS
 // ==========================================
 
-// --- NEW: Send Message to Instagram ---
+// --- Send Message to WhatsApp ---
+async function sendWhatsAppMessage(recipientPhone, textMsg) {
+    const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
+    const payload = {
+        messaging_product: "whatsapp",
+        to: recipientPhone,
+        type: "text",
+        text: { body: textMsg }
+    };
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${ACCESS_TOKEN}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        if(response.ok) console.log(`✅ WhatsApp Reply delivered!`);
+        else console.error(`❌ WhatsApp API Error:`, await response.text());
+    } catch (err) {
+        console.error("❌ WhatsApp Network Error:", err);
+    }
+}
+
+// --- Send Message to Instagram ---
 async function sendInstagramMessage(recipientId, textMsg) {
-    const url = `https://graph.facebook.com/v20.0/me/messages`; // 'me' uses the token's account
+    const url = `https://graph.facebook.com/v20.0/me/messages`;
     const payload = {
         recipient: { id: recipientId },
         message: { text: textMsg }
@@ -162,12 +182,12 @@ async function sendInstagramMessage(recipientId, textMsg) {
             body: JSON.stringify(payload)
         });
         if(response.ok) console.log(`✅ IG Reply delivered!`);
+        else console.error(`❌ IG API Error:`, await response.text());
     } catch (err) {
-        console.error("❌ IG API Error:", err);
+        console.error("❌ IG Network Error:", err);
     }
 }
 
-// (Keep your sendWhatsAppMessage, syncLeadToSheet, and routeToAgentTeam as they were...)
 // --- Sync to Google Sheets ---
 async function syncLeadToSheet(leadData) {
     const MAKE_WEBHOOK_URL = "https://hook.eu1.make.com/ejfq479exd8g3sotzimim8qr6uebyk93"; 
@@ -188,10 +208,10 @@ async function syncLeadToSheet(leadData) {
 }
 
 // --- AI Brain Routing ---
-async function routeToAgentTeam(messageText, phone) {
+async function routeToAgentTeam(messageText) {
     try {
         const msg = await anthropic.messages.create({
-            model: "claude-sonnet-4-6", // Fixed Model Name
+            model: "claude-3-5-sonnet-20241022", // FIXED AI MODEL NAME
             max_tokens: 300,
             system: `You are Sophia, the highly professional yet friendly Sales & Marketing assistant for Big Jpresso in Malaysia. 
             
@@ -222,7 +242,7 @@ cron.schedule('0 9 * * *', async () => {
     console.log("☀️ Jpresso Marketing Team is waking up...");
     try {
         const post = await anthropic.messages.create({
-            model: "claude-sonnet-4-6", // Fixed Model Name
+            model: "claude-3-5-sonnet-20241022", // FIXED AI MODEL NAME
             system: "Write a short, viral Instagram caption for Jpresso Coffee about fresh roasting in KL today. Use Manglish.",
             messages: [{ role: "user", content: "Create today's post." }]
         });
