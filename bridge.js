@@ -84,7 +84,9 @@ const JPRESSO_PRODUCTS = `
 // 🛡️ 4. META VERIFICATION CHECK (Handshake)
 // ==========================================
 app.get('/webhook', (req, res) => {
-    // This now works for BOTH WhatsApp and Instagram apps
+    // 🔍 THIS IS THE NEW DEBUG LINE:
+    console.log("🔍 Meta is asking to verify. Received Token:", req.query['hub.verify_token']);
+
     if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VERIFY_TOKEN) {
         console.log('✅ Meta Webhook Verified!');
         res.status(200).send(req.query['hub.challenge']);
