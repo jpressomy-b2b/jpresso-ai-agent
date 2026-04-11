@@ -117,13 +117,24 @@ app.post('/webhook', async (req, res) => {
             }
         }
 
-        // --- 🔵 CASE B: INSTAGRAM DM ---
+       // --- 🔵 CASE B: INSTAGRAM DM ---
         if (body.object === 'instagram') {
-            const messagingEvent = body.entry?.[0]?.messaging?.[0];
-            if (messagingEvent && messagingEvent.message) {
-                const igSenderId = messagingEvent.sender.id;
-                const messageText = messagingEvent.message.text || "No text";
+            let igSenderId = null;
+            let messageText = "No text";
 
+            // Catch both possible Meta formats ('messaging' or 'changes')
+            const messagingEvent = body.entry?.[0]?.messaging?.[0];
+            const changesEvent = body.entry?.[0]?.changes?.[0]?.value;
+
+            if (messagingEvent && messagingEvent.message) {
+                igSenderId = messagingEvent.sender.id;
+                messageText = messagingEvent.message.text || "No text";
+            } else if (changesEvent && changesEvent.message) {
+                igSenderId = changesEvent.sender.id;
+                messageText = changesEvent.message.text || "No text";
+            }
+
+            if (igSenderId) {
                 console.log(`\n📥 [Instagram] ID ${igSenderId}: "${messageText}"`);
                 const agentResponse = await routeToAgentTeam(messageText);
 
@@ -131,10 +142,6 @@ app.post('/webhook', async (req, res) => {
                 await sendInstagramMessage(igSenderId, agentResponse);
             }
         }
-
-    } catch (error) {
-        console.error("❌ Gateway Error:", error.message);
-    }
 });
 
 // ==========================================
