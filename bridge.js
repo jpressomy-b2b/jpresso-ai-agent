@@ -99,6 +99,9 @@ app.post('/webhook', async (req, res) => {
         const body = req.body;
         res.sendStatus(200); 
 
+        // 🚨 NEW SECURITY CAMERA: This will print EVERYTHING Meta sends us!
+        console.log("🚨 INCOMING META DATA:", JSON.stringify(body, null, 2));
+
         // --- 🟢 CASE A: WHATSAPP MESSAGE ---
         if (body.object === 'whatsapp_business_account') {
             const webhook_event = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
