@@ -141,8 +141,7 @@ app.post('/webhook', async (req, res) => {
                 await syncLeadToSheet({ phone: igSenderId, msg: messageText, reply: agentResponse, platform: "Instagram" });
                 await sendInstagramMessage(igSenderId, agentResponse);
             }
-        }
-});
+        });
 
 // ==========================================
 // 🛠️ 6. CORE FUNCTIONS
