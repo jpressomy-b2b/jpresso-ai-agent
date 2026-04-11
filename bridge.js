@@ -21,9 +21,10 @@ const PHONE_NUMBER_ID = process.env.META_PHONE_ID || "1058678540664095";
 // Instagram Keys
 const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN; 
 
-// Verify Token (MUST match what you type in Meta Dashboard)
+// Verify Token
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "JpressoSophia2026"; 
 
+// AI Keys
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -86,14 +87,12 @@ app.get('/webhook', (req, res) => {
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
 
-    console.log("🔍 Meta is knocking... Token received:", token);
-
     if (mode && token) {
         if (mode === 'subscribe' && token === VERIFY_TOKEN) {
             console.log('✅ WEBHOOK_VERIFIED! Handshake complete.');
             res.status(200).send(challenge);
         } else {
-            console.error('❌ VERIFICATION_FAILED: Token mismatch. Check Render Env vs Meta Portal.');
+            console.error('❌ VERIFICATION_FAILED: Token mismatch.');
             res.sendStatus(403);
         }
     }
@@ -105,9 +104,8 @@ app.get('/webhook', (req, res) => {
 app.post('/webhook', async (req, res) => {
     try {
         const body = req.body;
-        res.sendStatus(200); 
 
-        // 🚨 SECURITY CAMERA: This will print EVERYTHING Meta sends us!
+        // 🚨 SECURITY CAMERA: Print EVERYTHING Meta sends us!
         console.log("🚨 INCOMING META DATA:", JSON.stringify(body, null, 2));
 
         // --- 🟢 CASE A: WHATSAPP MESSAGE ---
@@ -125,41 +123,46 @@ app.post('/webhook', async (req, res) => {
             }
         }
 
-      // --- 🔵 CASE B: INSTAGRAM DM ---
-  if (body.object === 'instagram') {
-      // 1. Catch both possible Meta formats
-      const messagingEvent = body.entry?.[0]?.messaging?.[0];
-      const changesEvent = body.entry?.[0]?.changes?.[0]?.value;
+        // --- 🔵 CASE B: INSTAGRAM DM ---
+        if (body.object === 'instagram') {
+            const messagingEvent = body.entry?.[0]?.messaging?.[0];
+            const changesEvent = body.entry?.[0]?.changes?.[0]?.value;
 
-      // 🛡️ THE ECHO FILTER: Stop Sophia from talking to herself!
-      // This checks if the message was sent BY the Jpresso account.
-      if (messagingEvent?.message?.is_echo || changesEvent?.message?.is_echo) {
-          console.log("🤫 Echo detected: Sophia heard her own voice. Ignoring to prevent loop.");
-          return res.sendStatus(200); // We tell Meta "Thanks!" but do nothing else.
-      }
+            // 🛡️ THE ECHO FILTER: Stop Sophia from talking to herself!
+            if (messagingEvent?.message?.is_echo || changesEvent?.message?.is_echo) {
+                console.log("🤫 Echo detected: Sophia heard her own voice. Ignoring.");
+                // We do NOT send sendStatus here because we send it at the very end.
+            } else {
+                let igSenderId = null;
+                let messageText = "No text";
 
-      let igSenderId = null;
-      let messageText = "No text";
+                if (messagingEvent && messagingEvent.message) {
+                    igSenderId = messagingEvent.sender.id;
+                    messageText = messagingEvent.message.text || "No text";
+                } else if (changesEvent && changesEvent.message) {
+                    igSenderId = changesEvent.sender.id;
+                    messageText = changesEvent.message.text || "No text";
+                }
 
-      if (messagingEvent && messagingEvent.message) {
-          igSenderId = messagingEvent.sender.id;
-          messageText = messagingEvent.message.text || "No text";
-      } else if (changesEvent && changesEvent.message) {
-          igSenderId = changesEvent.sender.id;
-          messageText = changesEvent.message.text || "No text";
-      }
+                if (igSenderId) {
+                    console.log(`\n📥 [Instagram] ID ${igSenderId}: "${messageText}"`);
+                    const agentResponse = await routeToAgentTeam(messageText);
+                    
+                    await syncLeadToSheet({ phone: igSenderId, msg: messageText, reply: agentResponse, platform: "Instagram" });
+                    await sendInstagramMessage(igSenderId, agentResponse);
+                }
+            }
+        }
 
-      if (igSenderId) {
-          console.log(`\n📥 [Instagram] ID ${igSenderId}: "${messageText}"`);
-          
-          // Sophia starts thinking...
-          const agentResponse = await routeToAgentTeam(messageText);
+        // Send ONE response to Meta for everything
+        res.sendStatus(200);
 
-          // Sophia saves the lead and replies
-          await syncLeadToSheet({ phone: igSenderId, msg: messageText, reply: agentResponse, platform: "Instagram" });
-          await sendInstagramMessage(igSenderId, agentResponse);
-      }
-  }
+    } catch (error) {
+        console.error("❌ Gateway Error:", error.message);
+        res.sendStatus(500);
+    }
+});
+
 // ==========================================
 // 🛠️ 6. CORE FUNCTIONS
 // ==========================================
@@ -217,14 +220,12 @@ async function sendInstagramMessage(recipientId, textMsg) {
 // --- Sync to Google Sheets ---
 async function syncLeadToSheet(leadData) {
     const MAKE_WEBHOOK_URL = "https://hook.eu1.make.com/ejfq479exd8g3sotzimim8qr6uebyk93"; 
-
     try {
         const response = await fetch(MAKE_WEBHOOK_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(leadData)
         });
-
         if (response.ok) {
             console.log("✅ Lead successfully synced to Make.com!");
         }
@@ -237,23 +238,21 @@ async function syncLeadToSheet(leadData) {
 async function routeToAgentTeam(messageText) {
     try {
         const msg = await anthropic.messages.create({
-            model: "claude-haiku-4-5", 
+            model: "claude-haiku-4-5", // 🧠 Locked in to Claude 4.5 Haiku!
             max_tokens: 300,
             system: `You are Sophia, the highly professional yet friendly Sales & Marketing assistant for Big Jpresso in Malaysia. 
-            
             TONE: Use natural, polite Manglish (boss, lah, can). Be concise.
-
+            
             CRITICAL RULES:
             1. ONLY recommend products explicitly listed in the JPRESSO_PRODUCTS list. 
             2. If a customer asks for a bean we do not have, politely say we don't carry it, and recommend our Signature Moon White Blend instead.
-            3. If asked for brewing advice, ONLY recommend the Tetsu Kasuya 4:6 method.
+            3. If asked for brewing advice, ALWAYS recommend the Tetsu Kasuya 4:6 method. Remember to advise using a coarse grind for a slower extraction flow, and a finer grind for a faster extraction flow.
             4. Always try to close the sale by asking if they want to place an order or visit our roastery in Kuala Lumpur.
 
             PRODUCT KNOWLEDGE: 
             ${JPRESSO_PRODUCTS}`,
             messages: [{ role: "user", content: messageText }]
         });
-        
         return msg.content[0].text;
     } catch (error) {
         console.error("❌ AI Error:", error.message);
@@ -269,6 +268,7 @@ cron.schedule('0 9 * * *', async () => {
     try {
         const post = await anthropic.messages.create({
             model: "claude-haiku-4-5", 
+            max_tokens: 300,
             system: "Write a short, viral Instagram caption for Jpresso Coffee about fresh roasting in KL today. Use Manglish.",
             messages: [{ role: "user", content: "Create today's post." }]
         });
