@@ -125,37 +125,41 @@ app.post('/webhook', async (req, res) => {
             }
         }
 
-        // --- 🔵 CASE B: INSTAGRAM DM ---
-        if (body.object === 'instagram') {
-            let igSenderId = null;
-            let messageText = "No text";
+      // --- 🔵 CASE B: INSTAGRAM DM ---
+  if (body.object === 'instagram') {
+      // 1. Catch both possible Meta formats
+      const messagingEvent = body.entry?.[0]?.messaging?.[0];
+      const changesEvent = body.entry?.[0]?.changes?.[0]?.value;
 
-            // Catch both possible Meta formats ('messaging' or 'changes')
-            const messagingEvent = body.entry?.[0]?.messaging?.[0];
-            const changesEvent = body.entry?.[0]?.changes?.[0]?.value;
+      // 🛡️ THE ECHO FILTER: Stop Sophia from talking to herself!
+      // This checks if the message was sent BY the Jpresso account.
+      if (messagingEvent?.message?.is_echo || changesEvent?.message?.is_echo) {
+          console.log("🤫 Echo detected: Sophia heard her own voice. Ignoring to prevent loop.");
+          return res.sendStatus(200); // We tell Meta "Thanks!" but do nothing else.
+      }
 
-            if (messagingEvent && messagingEvent.message) {
-                igSenderId = messagingEvent.sender.id;
-                messageText = messagingEvent.message.text || "No text";
-            } else if (changesEvent && changesEvent.message) {
-                igSenderId = changesEvent.sender.id;
-                messageText = changesEvent.message.text || "No text";
-            }
+      let igSenderId = null;
+      let messageText = "No text";
 
-            if (igSenderId) {
-                console.log(`\n📥 [Instagram] ID ${igSenderId}: "${messageText}"`);
-                const agentResponse = await routeToAgentTeam(messageText);
+      if (messagingEvent && messagingEvent.message) {
+          igSenderId = messagingEvent.sender.id;
+          messageText = messagingEvent.message.text || "No text";
+      } else if (changesEvent && changesEvent.message) {
+          igSenderId = changesEvent.sender.id;
+          messageText = changesEvent.message.text || "No text";
+      }
 
-                await syncLeadToSheet({ phone: igSenderId, msg: messageText, reply: agentResponse, platform: "Instagram" });
-                await sendInstagramMessage(igSenderId, agentResponse);
-            }
-        }
+      if (igSenderId) {
+          console.log(`\n📥 [Instagram] ID ${igSenderId}: "${messageText}"`);
+          
+          // Sophia starts thinking...
+          const agentResponse = await routeToAgentTeam(messageText);
 
-    } catch (error) {
-        console.error("❌ Gateway Error:", error.message);
-    }
-});
-
+          // Sophia saves the lead and replies
+          await syncLeadToSheet({ phone: igSenderId, msg: messageText, reply: agentResponse, platform: "Instagram" });
+          await sendInstagramMessage(igSenderId, agentResponse);
+      }
+  }
 // ==========================================
 // 🛠️ 6. CORE FUNCTIONS
 // ==========================================
