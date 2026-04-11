@@ -99,7 +99,7 @@ app.post('/webhook', async (req, res) => {
         const body = req.body;
         res.sendStatus(200); 
 
-        // 🚨 NEW SECURITY CAMERA: This will print EVERYTHING Meta sends us!
+        // 🚨 SECURITY CAMERA: This will print EVERYTHING Meta sends us!
         console.log("🚨 INCOMING META DATA:", JSON.stringify(body, null, 2));
 
         // --- 🟢 CASE A: WHATSAPP MESSAGE ---
@@ -117,7 +117,7 @@ app.post('/webhook', async (req, res) => {
             }
         }
 
-       // --- 🔵 CASE B: INSTAGRAM DM ---
+        // --- 🔵 CASE B: INSTAGRAM DM ---
         if (body.object === 'instagram') {
             let igSenderId = null;
             let messageText = "No text";
@@ -141,7 +141,12 @@ app.post('/webhook', async (req, res) => {
                 await syncLeadToSheet({ phone: igSenderId, msg: messageText, reply: agentResponse, platform: "Instagram" });
                 await sendInstagramMessage(igSenderId, agentResponse);
             }
-        });
+        }
+
+    } catch (error) {
+        console.error("❌ Gateway Error:", error.message);
+    }
+});
 
 // ==========================================
 // 🛠️ 6. CORE FUNCTIONS
