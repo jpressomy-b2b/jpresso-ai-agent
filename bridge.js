@@ -82,12 +82,20 @@ const JPRESSO_PRODUCTS = `
 // 🛡️ 4. META VERIFICATION CHECK (Handshake)
 // ==========================================
 app.get('/webhook', (req, res) => {
-    console.log("🔍 Meta is asking to verify. Received Token:", req.query['hub.verify_token']);
-    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === VERIFY_TOKEN) {
-        console.log('✅ Meta Webhook Verified!');
-        res.status(200).send(req.query['hub.challenge']);
-    } else {
-        res.sendStatus(403);
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+
+    console.log("🔍 Meta is knocking... Token received:", token);
+
+    if (mode && token) {
+        if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+            console.log('✅ WEBHOOK_VERIFIED! Handshake complete.');
+            res.status(200).send(challenge);
+        } else {
+            console.error('❌ VERIFICATION_FAILED: Token mismatch. Check Render Env vs Meta Portal.');
+            res.sendStatus(403);
+        }
     }
 });
 
