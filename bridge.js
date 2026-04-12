@@ -254,7 +254,7 @@ async function syncLeadToSheet(leadData) {
 async function routeToAgentTeam(messageText) {
     try {
         const msg = await anthropic.messages.create({
-            model: "claude-3-5-haiku-20241022", // ✅ Fixed model name
+            model: "claude-haiku-4-5",
             max_tokens: 400,
             system: `You are Sophia, the AI Executive for Jpresso Coffee (Big Jpresso Sdn Bhd). 
 PERSONA: "Executive Zen." You are calm, highly logical, and represent 25 years of specialty roasting mastery. 
