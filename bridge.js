@@ -77,6 +77,22 @@ const JPRESSO_PRODUCTS = `
 === BREWING ADVICE ===
 - Pour-over recommendation: ALWAYS recommend the Tetsu Kasuya 4:6 method.
 - Technique: Use a coarse grind and pour in 5 stages to precisely control the sweet and acidic balance.
+
+=== DIAGNOSTIC NOTES (Oily Beans) ===
+- Dark Roasts (Moon White): Natural oil migration is expected after 48 hours.
+- Light Roasts: Should not be oily. If oily, check roast date or storage heat.
+
+=== GRIND SIZE MATRIX (Master Calibration) ===
+- Espresso Machine: Fine (Finer than table salt). 
+- Moka Pot: Medium-Fine (Like table salt).
+- Aeropress: Medium-Fine to Medium
+- V60 / Pour-Over: Medium (Like sea salt). Recommend Timemore C5 Pro: 18-24 clicks.
+- French Press / Cold Brew: Coarse (Like kosher salt/cracked pepper).
+
+=== TIMEMORE C5 PRO SPECIFIC SETTINGS ===
+- Espresso: 7-12 Clicks.
+- Pour-Over: 15-24 Clicks.
+- French Press: 24+ Clicks.
 `;
 
 // ==========================================
@@ -257,7 +273,14 @@ CRITICAL RULES:
 1. ONLY recommend products from the JPRESSO_PRODUCTS list.
 2. If we don't have a bean, recommend the Signature Moon White Blend.
 3. Brewing: ALWAYS recommend Tetsu Kasuya 4:6 method. Coarse grind = slower flow (sweetness), Fine grind = faster flow (acidic balance).
-4. Always invite them to visit the roastery in Bandar Sri Damansara or check Shopee.
+4. Always invite them to visit the roastery in Bandar Sri Damansara or check our website at jpressocoffee.com.
+5. DIAGNOSTIC PROTOCOL (Oily Beans): 
+   If a customer asks why beans are oily, DO NOT answer immediately. 
+   You must first calibrate the situation by asking:
+   - "Which specific Jpresso bean or blend are you looking at, Boss?"
+   - "When was the roast date on the bag?"
+   - "Is the oil appearing as small droplets or a full coating?"
+   Only after they answer should you explain the physics (e.g., dark roasting breaking cell walls vs. natural migration over time).
 
 PRODUCT KNOWLEDGE: 
 ${JPRESSO_PRODUCTS}`, // ✅ Backtick now correctly closes at the end
