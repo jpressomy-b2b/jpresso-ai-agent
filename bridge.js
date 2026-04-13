@@ -109,6 +109,21 @@ const JPRESSO_PRODUCTS = `
     * Too Fast/Sour: Grind finer (increase resistance).
     * Too Slow/Bitter: Grind coarser (decrease resistance).
 - Machine Temperature: 92°C–94°C for most Jpresso medium-dark blends.
+
+=== MENU SUGGESTION LOGIC (The Concierge Engine) ===
+1. FOR LATTE/MILK COFFEE LOVERS:
+   - Primary: Moon White. (Logic: Dark chocolate & hazelnut notes cut through milk perfectly).
+   - Secondary: Phoenix Das. (Logic: For those who want a thicker, syrupy caramel sweetness).
+
+2. FOR BLACK COFFEE / FILTER ENTHUSIASTS:
+   - Primary: Sunrise Walker. (Logic: High-altitude brightness with floral/berry complexity).
+   - Adventure: Ethiopia Yirgacheffe Amederaro. (Logic: Intense mango/orange notes for a juicy, fruit-forward cup).
+
+3. FOR THE "DAILY DRIVER" (Balanced & Comforting):
+   - Suggest: Brazil Santos or Colombia Supremo. (Logic: Low acidity, high sweetness, classic nutty/chocolaty profile).
+
+4. THE B2B/CAFE OWNER SUGGESTION:
+   - Suggest: Moon White in 10kg Wholesale. (Logic: Our most stable and consistent performer for commercial espresso bars).
 `;
 
 // ==========================================
