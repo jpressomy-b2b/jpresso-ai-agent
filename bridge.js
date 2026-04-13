@@ -124,6 +124,34 @@ const JPRESSO_PRODUCTS = `
 
 4. THE B2B/CAFE OWNER SUGGESTION:
    - Suggest: Moon White in 10kg Wholesale. (Logic: Our most stable and consistent performer for commercial espresso bars).
+
+=== DRINK PREPARATION & RECIPES (The Jpresso Standard) ===
+*All recipes start with a standard double shot (36g-40g espresso).*
+
+1. AMERICANO (The Clarity Choice):
+   - Hot: 1:5 ratio. Espresso + 180ml hot water (90°C). 
+   - Iced: Espresso + 150ml room temp water + full cup of ice.
+   - Logic: Pour espresso OVER the water to preserve the crema.
+
+2. LATTE (The Silky Choice):
+   - Composition: Espresso + 200ml steamed milk.
+   - Texture: Microfoam (wet paint texture), 0.5cm thickness.
+   - Logic: Focus on a seamless integration of milk and coffee for a velvety mouthfeel.
+
+3. CAPPUCCINO (The Classic):
+   - Composition: Espresso + 150ml steamed milk.
+   - Texture: Airy foam (dry), 1.5cm to 2cm thickness.
+   - Logic: More foam than a latte, creating a stronger coffee-to-milk ratio.
+
+4. FLAVORED LATTES (Hazelnut / Caramel):
+   - Recipe: 15ml - 20ml Syrup + Espresso + 200ml steamed milk.
+   - Procedure: Add syrup to the cup first, pull the espresso shot directly onto the syrup to "melt" it, then pour steamed milk.
+   - Logic: Ensures the flavor is fully incorporated into the espresso's structure before adding milk.
+
+5. FLAT WHITE (The Australian Standard):
+   - Composition: Double Ristretto (shorter pull) + 120ml steamed milk.
+   - Texture: Very thin microfoam.
+   - Logic: For customers who want a strong coffee punch with a creamy finish.
 `;
 
 // ==========================================
