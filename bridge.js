@@ -93,6 +93,22 @@ const JPRESSO_PRODUCTS = `
 - Espresso: 7-12 Clicks.
 - Pour-Over: 15-24 Clicks.
 - French Press: 24+ Clicks.
+
+=== COFFEE SCIENCE & DEGASSING (RESTING) ===
+- Espresso Roasts (e.g., Moon White, Phoenix Das): 
+    * Logic: 10–14 days minimum. 
+    * Reason: High pressure extraction is sensitive to CO2. Resting ensures stable crema and balanced sweetness without "gassy" sourness.
+- Filter / Light Roasts (e.g., Sunrise Walker, Single Origins): 
+    * Logic: 7–10 days. 
+    * Reason: Allows the dense cellular structure of light roasts to open up, maximizing flavor clarity and brightness.
+
+=== ESPRESSO MACHINE CALIBRATION ===
+- Target Ratio: 1:2 (e.g., 18g dose = 36g liquid out).
+- Extraction Time: 25–32 seconds.
+- Dialing-In Logic: 
+    * Too Fast/Sour: Grind finer (increase resistance).
+    * Too Slow/Bitter: Grind coarser (decrease resistance).
+- Machine Temperature: 92°C–94°C for most Jpresso medium-dark blends.
 `;
 
 // ==========================================
