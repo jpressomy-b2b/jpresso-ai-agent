@@ -164,6 +164,7 @@ const JPRESSO_PRODUCTS = `
    - Composition: Double Ristretto (shorter pull) + 120ml steamed milk.
    - Texture: Very thin microfoam.
    - Logic: For customers who want a strong coffee punch with a creamy finish.
+   `;
 
 const SOPHIA_SYSTEM_PROMPT = `
 You are Sophia, the Chief Operating Officer and "Executive Zen" AI Concierge for Big Jpresso Sdn Bhd. 
