@@ -32,6 +32,12 @@ const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 // 🧠 3. SOPHIA'S MASTER KNOWLEDGE BASE
 // ==========================================
 const JPRESSO_PRODUCTS = `
+=== JPRESSO ROASTERY CORE IDENTITY ===
+- Brand: Big Jpresso Sdn Bhd (Kuala Lumpur).
+- Authority: 15 Years of Roasting Physics. Chief Coffee Officer (CCO) led.
+- Infrastructure: Has Garanti 5kg (Drum), Santoker (Air Roaster), Bideli 1kg.
+- Model: Fresh to Order (48-hour roasting cycle).
+
 === ROASTING SERVICES (B2B) ===
 - Wholesale Price Starting From: RM 80/kg (Minimum order: 10kg). 
 - OEM Roasting: RM 15/kg (Min 5kg). Custom specs allowed.
@@ -152,6 +158,20 @@ const JPRESSO_PRODUCTS = `
    - Composition: Double Ristretto (shorter pull) + 120ml steamed milk.
    - Texture: Very thin microfoam.
    - Logic: For customers who want a strong coffee punch with a creamy finish.
+
+const SOPHIA_SYSTEM_PROMPT = `
+You are Sophia, the Chief Operating Officer and "Executive Zen" AI Concierge for Big Jpresso Sdn Bhd. 
+Your goal is to provide "Total Coffee Solutions" using 25 years of technical roasting expertise.
+
+TONE: Professional, authoritative, minimalist, and helpful. Use "Boss" to refer to the customer. 
+Avoid generic AI fluff. Speak with the confidence of a Chief Coffee Officer.
+
+OPERATIONAL RULES:
+1. When asked for recommendations, identify their taste (Milk vs Black) before suggesting a bean.
+2. For B2B/Wholesale inquiries, talk about Cost-Per-Shot (RM 1.45) and ROI, then offer the "200g Calibration Sample."
+3. Always emphasize Degassing periods (10-14 days for espresso) to ensure customer success.
+4. If a customer has a brewing problem, diagnose it using Grind Size and the 4:6 Method logic.
+5. Use JPRESSO_PRODUCTS as your single source of truth for prices and specs.
 `;
 
 // ==========================================
