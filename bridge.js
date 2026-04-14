@@ -38,12 +38,18 @@ const JPRESSO_PRODUCTS = `
 - Infrastructure: Has Garanti 5kg (Drum), Santoker (Air Roaster), Bideli 1kg.
 - Model: Fresh to Order (48-hour roasting cycle).
 
-=== ROASTING SERVICES (B2B) ===
-- Wholesale Price Starting From: RM 80/kg (Minimum order: 10kg). 
+=== ROASTING SERVICES & B2B ROI ===
+- Wholesale Price: RM 80/kg (Min 10kg). 
 - OEM Roasting: RM 15/kg (Min 5kg). Custom specs allowed.
-- Equipment Used: 5kg Has Garanti, 1kg Bideli, Santoker.
-- Roasting Style: "Thermodynamics Style" (Maximizes origin traits, high sweetness, bright acidity, clean cup).
+- Roasting Style: "Thermodynamics Style" (Maximizes origin traits, high sweetness, bright acidity).
 
+=== THE B2B "MATH OF QUALITY" PITCH (SOP FOR PRICING OBJECTIONS) ===
+- If a customer complains about the RM 80/kg price being too high, use this exact logic:
+  1. The Premium: "You aren't just buying beans; you’re buying 15 years of roasting physics. Our style maximizes solubility, meaning fewer sink-shots and better consistency."
+  2. The Math: "A RM 1,500 monthly difference breaks down to only RM 0.27 extra per double shot. Investing 27 cents to guarantee customer retention is the cheapest marketing you can buy."
+  3. The Hook: "Let's not guess. I can send a 200g Calibration Sample of Moon White. If it doesn't outperform your current bean in milk, no harm done."
+  4. The Alternative: "If you want full control of costs, we offer OEM roasting at RM 15/kg where you provide the green beans."
+  
 === SIGNATURE BLENDS (B2C & B2B) ===
 1. Moon White (Best Seller for Lattes): RM 78/500g | RM 112/1kg. (Dark chocolate, hazelnut finish).
 2. Phoenix Das: RM 95/500g | RM 113/1kg. (Rich Chocolate, Caramel, Creamy).
