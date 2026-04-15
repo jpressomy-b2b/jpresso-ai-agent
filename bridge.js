@@ -389,9 +389,9 @@ async function routeToAgentTeam(senderId, messageText) {
 
         console.log(`🧠 Sending perfectly formatted messages to Claude`);
 
-        // 6. Send to the official model
+        // 6. Send to YOUR specific model string
         const msg = await anthropic.messages.create({
-            model: "claude-4.5-haiku", 
+            model: "claude-4.5-haiku", // Changed back to your working string
             max_tokens: 500,
             system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCT KNOWLEDGE ===\n" + JPRESSO_PRODUCTS,
             messages: safeHistory
