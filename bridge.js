@@ -25,7 +25,7 @@ const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN;
 // Verify Token
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "JpressoSophia2026"; 
 
-// AI Keys
+// AI Keys (DECLARED ONLY ONCE)
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -35,6 +35,7 @@ const userSessions = new Map();
 // ==========================================
 // 🧠 3. SOPHIA'S MASTER KNOWLEDGE BASE
 // ==========================================
+const JPRESSO_PRODUCTS = `
 const JPRESSO_PRODUCTS = `
 === JPRESSO ROASTERY CORE IDENTITY ===
 - Brand: Big Jpresso Sdn Bhd (Kuala Lumpur).
