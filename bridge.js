@@ -352,73 +352,28 @@ async function syncLeadToSheet(leadData) {
     }
 }
 
-// --- AI Brain Routing (Perfect Alternation Memory) ---
+// --- AI Brain Routing (Zero-Memory Isolation Test) ---
 async function routeToAgentTeam(senderId, messageText) {
     try {
-        // 1. Fetch or create memory
-        if (!userSessions.has(senderId)) {
-            userSessions.set(senderId, []);
-        }
-        let history = userSessions.get(senderId);
+        console.log(`🧠 [DEBUG] Sending 1 isolated message for +${senderId}`);
 
-        // 2. Add the new message
-        history.push({ role: "user", content: messageText });
-
-        // 3. Keep memory short (last 10 messages max to process)
-        if (history.length > 10) {
-            history = history.slice(-10);
-        }
-
-        // 4. THE ULTIMATE ROLE ALTERNATOR
-        // We will build a new array that GUARANTEES perfect alternating roles
-        let formattedMessages = [];
-        
-        // Combine consecutive messages of the same role
-        for (let i = 0; i < history.length; i++) {
-            const currentMsg = history[i];
-            
-            if (formattedMessages.length === 0) {
-                formattedMessages.push({ role: currentMsg.role, content: currentMsg.content });
-            } else {
-                const lastMsg = formattedMessages[formattedMessages.length - 1];
-                if (lastMsg.role === currentMsg.role) {
-                    // Combine if roles are the same
-                    lastMsg.content += "\n\n" + currentMsg.content;
-                } else {
-                    // Add new if roles alternate properly
-                    formattedMessages.push({ role: currentMsg.role, content: currentMsg.content });
-                }
-            }
-        }
-
-        // 5. Anthropic requires the first message to ALWAYS be from the "user"
-        if (formattedMessages.length > 0 && formattedMessages[0].role !== "user") {
-            formattedMessages.shift();
-        }
-
-        console.log(`🧠 Sending ${formattedMessages.length} perfectly alternating messages to Claude for +${senderId}`);
-
-        // 6. Send to the Universal Haiku model
+        // Send a completely fresh, 1-message array every single time.
+        // No memory, no history, no arrays to get corrupted.
         const msg = await anthropic.messages.create({
             model: "claude-3-haiku-20240307", 
             max_tokens: 500,
             system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCT KNOWLEDGE ===\n" + JPRESSO_PRODUCTS,
-            messages: formattedMessages
+            messages: [
+                { role: "user", content: messageText }
+            ]
         });
 
-        const replyText = msg.content[0].text;
-
-        // 7. Save Sophia's reply to the raw history
-        history.push({ role: "assistant", content: replyText });
-        userSessions.set(senderId, history);
-
-        return replyText;
+        return msg.content[0].text;
         
     } catch (error) {
         console.error("\n❌ ================= AI API CRASH =================");
         console.error("STATUS:", error.status);
         console.error("MESSAGE:", error.message);
-        if (error.error) console.error("DETAILS:", JSON.stringify(error.error, null, 2));
         console.error("===================================================\n");
         
         return "Sorry Boss, my internal boiler is resetting. Let me get the Chief to help you!";
