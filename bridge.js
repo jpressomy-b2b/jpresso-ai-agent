@@ -25,7 +25,7 @@ const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN;
 // Verify Token
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "JpressoSophia2026"; 
 
-// AI Keys (DECLARED ONLY ONCE)
+// AI Keys (DECLARED STRICTLY ONCE)
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
@@ -35,7 +35,6 @@ const userSessions = new Map();
 // ==========================================
 // 🧠 3. SOPHIA'S MASTER KNOWLEDGE BASE
 // ==========================================
-const JPRESSO_PRODUCTS = `
 const JPRESSO_PRODUCTS = `
 === JPRESSO ROASTERY CORE IDENTITY ===
 - Brand: Big Jpresso Sdn Bhd (Kuala Lumpur).
@@ -366,7 +365,6 @@ async function routeToAgentTeam(senderId, messageText) {
         history.push({ role: "user", content: messageText });
 
         // 3. THE SHOCK ABSORBER: Merge back-to-back messages from the same role
-        // This prevents Anthropic from crashing if a user "double-texts"
         let safeHistory = [];
         for (let msg of history) {
             if (safeHistory.length > 0 && safeHistory[safeHistory.length - 1].role === msg.role) {
@@ -389,11 +387,11 @@ async function routeToAgentTeam(senderId, messageText) {
             if (safeHistory[0].role !== "user") safeHistory.shift(); 
         }
 
-        console.log(`🧠 Sending ${safeHistory.length} perfectly formatted messages to Claude`);
+        console.log(`🧠 Sending perfectly formatted messages to Claude`);
 
-        // 6. Send to the official Haiku 3.5 model
+        // 6. Send to the official model
         const msg = await anthropic.messages.create({
-            model: "claude-4.5-haiku", 
+            model: "claude-3-5-haiku-20241022", 
             max_tokens: 500,
             system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCT KNOWLEDGE ===\n" + JPRESSO_PRODUCTS,
             messages: safeHistory
@@ -408,16 +406,17 @@ async function routeToAgentTeam(senderId, messageText) {
         return replyText;
         
     } catch (error) {
-        // 🚨 THE BLACK BOX LOGGER: Prints exact failure reason to Render
+        // 🚨 LOGGER
         console.error("\n❌ ================= AI API CRASH =================");
         console.error("STATUS:", error.status);
         console.error("MESSAGE:", error.message);
-        console.error("DETAILS:", JSON.stringify(error.error, null, 2));
+        if (error.error) console.error("DETAILS:", JSON.stringify(error.error, null, 2));
         console.error("===================================================\n");
         
         return "Sorry Boss, my internal boiler is resetting. Let me get the Chief to help you!";
     }
 }
+
 // ==========================================
 // 📅 7. AUTOMATED DAILY MARKETING (9 AM)
 // ==========================================
@@ -425,7 +424,7 @@ cron.schedule('0 9 * * *', async () => {
     console.log("☀️ Jpresso Marketing Team is waking up...");
     try {
         const post = await anthropic.messages.create({
-            model: "claude-4.5-haiku", 
+            model: "claude-3-5-haiku-20241022", 
             max_tokens: 300,
             system: "Write a short, viral Instagram caption for Jpresso Coffee about fresh roasting in KL today. Use Manglish.",
             messages: [{ role: "user", content: "Create today's post." }]
