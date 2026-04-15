@@ -352,48 +352,57 @@ async function syncLeadToSheet(leadData) {
     }
 }
 
-// --- AI Brain Routing (Flagship Sonnet Engine & Auto-Cleaning Memory) ---
+// --- AI Brain Routing (3.5 Haiku + Ultimate Alternator) ---
 async function routeToAgentTeam(senderId, messageText) {
     try {
-        // 1. Fetch or create memory
         if (!userSessions.has(senderId)) {
             userSessions.set(senderId, []);
         }
         let history = userSessions.get(senderId);
 
-        // 2. Ensure text is safe (Prevents crashing if a user sends an image/sticker)
+        // 1. Safe text extraction
         let safeText = String(messageText).trim();
         if (!safeText) safeText = "[Media/Empty Message Sent]";
 
+        // 2. Add raw message to history
         history.push({ role: "user", content: safeText });
 
-        // 3. THE ULTIMATE ROLE ALTERNATOR
+        // 3. STRICT ROLE ALTERNATOR (Fixes the 400 Error completely)
         let formattedMessages = [];
         for (let msg of history) {
             if (formattedMessages.length === 0) {
-                if (msg.role === "user") formattedMessages.push({ role: msg.role, content: msg.content });
+                // Array MUST start with a user message
+                if (msg.role === "user") {
+                    formattedMessages.push({ role: "user", content: msg.content });
+                }
             } else {
                 let lastMsg = formattedMessages[formattedMessages.length - 1];
                 if (lastMsg.role === msg.role) {
-                    // Merge double-texts
+                    // If two users message in a row, combine them. No crashing!
                     lastMsg.content += "\n\n[Follow-up]: " + msg.content;
                 } else {
+                    // Alternate normally
                     formattedMessages.push({ role: msg.role, content: msg.content });
                 }
             }
         }
 
-        // 4. Keep memory lean (Last 6 interactions)
-        if (formattedMessages.length > 6) {
-            formattedMessages = formattedMessages.slice(-6);
+        // 4. Anthropic REQUIRES the last message sent to be from the "user"
+        while (formattedMessages.length > 0 && formattedMessages[formattedMessages.length - 1].role !== "user") {
+            formattedMessages.pop();
+        }
+
+        // 5. Keep memory lean (Last 5 interactions)
+        if (formattedMessages.length > 5) {
+            formattedMessages = formattedMessages.slice(-5);
             if (formattedMessages[0].role !== "user") formattedMessages.shift();
         }
 
-        console.log(`🧠 Sending to Flagship Sonnet 3.5 for +${senderId}`);
+        console.log(`🧠 Engine Active: Sending ${formattedMessages.length} strict messages to 3.5 Haiku`);
 
-        // 5. Send to the Universal Flagship Model
+        // 6. Send to the EXACT model your account permits
         const msg = await anthropic.messages.create({
-            model: "claude-4.5-haiku", // 🚀 UPGRADED ENGINE
+            model: "claude-3-5-haiku-20241022", // 🔑 THE ONLY KEY THAT FITS YOUR LOCK
             max_tokens: 500,
             system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCT KNOWLEDGE ===\n" + JPRESSO_PRODUCTS,
             messages: formattedMessages
@@ -401,9 +410,9 @@ async function routeToAgentTeam(senderId, messageText) {
 
         const replyText = msg.content[0].text;
 
-        // 6. Save Sophia's reply and clean the raw history so it doesn't leak memory
+        // 7. Save and clean up
         history.push({ role: "assistant", content: replyText });
-        if (history.length > 15) history = history.slice(-15);
+        if (history.length > 20) history = history.slice(-20); // Prevents memory leaks
         userSessions.set(senderId, history);
 
         return replyText;
@@ -418,6 +427,7 @@ async function routeToAgentTeam(senderId, messageText) {
         return "Sorry Boss, my internal boiler is resetting. Let me get the Chief to help you!";
     }
 }
+
 // ==========================================
 // 📅 7. AUTOMATED DAILY MARKETING (9 AM)
 // ==========================================
@@ -425,7 +435,7 @@ cron.schedule('0 9 * * *', async () => {
     console.log("☀️ Jpresso Marketing Team is waking up...");
     try {
         const post = await anthropic.messages.create({
-            model: "claude-4.5-haiku", // 🚀 UPGRADED ENGINE
+            model: "claude-3-5-haiku-20241022", // 🔑 MUST MATCH HERE TOO
             max_tokens: 300,
             system: "Write a short, viral Instagram caption for Jpresso Coffee about fresh roasting in KL today. Use Manglish.",
             messages: [{ role: "user", content: "Create today's post." }]
