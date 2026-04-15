@@ -352,7 +352,7 @@ async function syncLeadToSheet(leadData) {
     }
 }
 
-// --- AI Brain Routing (Bulletproof Memory) ---
+// --- AI Brain Routing (Perfect Alternation Memory) ---
 async function routeToAgentTeam(senderId, messageText) {
     try {
         // 1. Fetch or create memory
@@ -364,37 +364,46 @@ async function routeToAgentTeam(senderId, messageText) {
         // 2. Add the new message
         history.push({ role: "user", content: messageText });
 
-        // 3. THE SHOCK ABSORBER: Merge back-to-back messages from the same role
-        let safeHistory = [];
-        for (let msg of history) {
-            if (safeHistory.length > 0 && safeHistory[safeHistory.length - 1].role === msg.role) {
-                // Combine them
-                safeHistory[safeHistory.length - 1].content += "\n[Follow-up]: " + msg.content;
+        // 3. Keep memory short (last 10 messages max to process)
+        if (history.length > 10) {
+            history = history.slice(-10);
+        }
+
+        // 4. THE ULTIMATE ROLE ALTERNATOR
+        // We will build a new array that GUARANTEES perfect alternating roles
+        let formattedMessages = [];
+        
+        // Combine consecutive messages of the same role
+        for (let i = 0; i < history.length; i++) {
+            const currentMsg = history[i];
+            
+            if (formattedMessages.length === 0) {
+                formattedMessages.push({ role: currentMsg.role, content: currentMsg.content });
             } else {
-                safeHistory.push({ role: msg.role, content: msg.content });
+                const lastMsg = formattedMessages[formattedMessages.length - 1];
+                if (lastMsg.role === currentMsg.role) {
+                    // Combine if roles are the same
+                    lastMsg.content += "\n\n" + currentMsg.content;
+                } else {
+                    // Add new if roles alternate properly
+                    formattedMessages.push({ role: currentMsg.role, content: currentMsg.content });
+                }
             }
         }
 
-        // 4. Ensure it ALWAYS starts with the User
-        while (safeHistory.length > 0 && safeHistory[0].role !== "user") {
-            safeHistory.shift();
+        // 5. Anthropic requires the first message to ALWAYS be from the "user"
+        if (formattedMessages.length > 0 && formattedMessages[0].role !== "user") {
+            formattedMessages.shift();
         }
 
-        // 5. Keep it short (last 5 interactions max)
-        if (safeHistory.length > 5) {
-            safeHistory = safeHistory.slice(-5);
-            // Re-check after slicing
-            if (safeHistory[0].role !== "user") safeHistory.shift(); 
-        }
+        console.log(`🧠 Sending ${formattedMessages.length} perfectly alternating messages to Claude for +${senderId}`);
 
-        console.log(`🧠 Sending perfectly formatted messages to Claude`);
-
-        // 6. Send to YOUR specific model string
+        // 6. Send to the Universal Haiku model
         const msg = await anthropic.messages.create({
-            model: "claude-3-haiku-20240307", // Changed back to your working string
+            model: "claude-3-haiku-20240307", 
             max_tokens: 500,
             system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCT KNOWLEDGE ===\n" + JPRESSO_PRODUCTS,
-            messages: safeHistory
+            messages: formattedMessages
         });
 
         const replyText = msg.content[0].text;
@@ -406,7 +415,6 @@ async function routeToAgentTeam(senderId, messageText) {
         return replyText;
         
     } catch (error) {
-        // 🚨 LOGGER
         console.error("\n❌ ================= AI API CRASH =================");
         console.error("STATUS:", error.status);
         console.error("MESSAGE:", error.message);
@@ -416,7 +424,6 @@ async function routeToAgentTeam(senderId, messageText) {
         return "Sorry Boss, my internal boiler is resetting. Let me get the Chief to help you!";
     }
 }
-
 // ==========================================
 // 📅 7. AUTOMATED DAILY MARKETING (9 AM)
 // ==========================================
