@@ -10,6 +10,7 @@ const cron = require('node-cron');
 // 🔑 2. CONFIGURATION & KEYS
 // ==========================================
 const app = express();
+const userSessions = new Map(); // 🧠 Memory Bank for Sophia
 app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 3000;
