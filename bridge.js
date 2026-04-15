@@ -352,22 +352,34 @@ async function syncLeadToSheet(leadData) {
     }
 }
 
-// --- AI Brain Routing (Memory Enabled) ---
+// --- AI Brain Routing (Memory Enabled & Safeguarded) ---
 async function routeToAgentTeam(senderId, messageText) {
     try {
+        // 1. Fetch or create memory
         if (!userSessions.has(senderId)) {
             userSessions.set(senderId, []);
         }
         let history = userSessions.get(senderId);
 
+        // 2. Add the new message
         history.push({ role: "user", content: messageText });
 
-        if (history.length > 6) {
-            history = history.slice(-6);
+        // 3. SAFEGUARD: Keep the last 5 messages so it ALWAYS starts with "user"
+        // (User -> Assistant -> User -> Assistant -> User)
+        if (history.length > 5) {
+            history = history.slice(-5);
+        }
+        
+        // 4. DOUBLE SAFEGUARD: If it somehow still starts with assistant, remove it
+        if (history.length > 0 && history[0].role === "assistant") {
+            history.shift();
         }
 
+        console.log(`🧠 Sending ${history.length} messages to Anthropic for +${senderId}`);
+
+        // 5. Send to your specific model
         const msg = await anthropic.messages.create({
-            model: "claude-4.5-haiku",
+            model: "claude-4.5-haiku", // Locked strictly to your requirement
             max_tokens: 500,
             system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCT KNOWLEDGE ===\n" + JPRESSO_PRODUCTS,
             messages: history
@@ -375,16 +387,19 @@ async function routeToAgentTeam(senderId, messageText) {
 
         const replyText = msg.content[0].text;
 
+        // 6. Save Sophia's reply to memory
         history.push({ role: "assistant", content: replyText });
         userSessions.set(senderId, history);
 
         return replyText;
     } catch (error) {
-        console.error("❌ AI Error:", error.message);
+        // 🚨 UPGRADED LOGGER: This will print the EXACT reason it failed in Render
+        console.error("❌ AI API CRASH REASON:", error.status, error.message);
+        console.error("❌ Full Error Details:", JSON.stringify(error.error, null, 2));
+        
         return "Sorry Boss, my internal boiler is resetting. Let me get the Chief to help you!";
     }
 }
-
 // ==========================================
 // 📅 7. AUTOMATED DAILY MARKETING (9 AM)
 // ==========================================
