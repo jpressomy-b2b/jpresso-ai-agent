@@ -29,6 +29,9 @@ const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "JpressoSophia2026";
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
+// Memory Bank for Sophia
+const userSessions = new Map();
+
 // ==========================================
 // 🧠 3. SOPHIA'S MASTER KNOWLEDGE BASE
 // ==========================================
@@ -184,6 +187,17 @@ OPERATIONAL RULES (STRICT STRICT STRICT):
 3. Always emphasize Degassing periods (10-14 days for espresso) to ensure customer success.
 4. If a customer has a brewing problem, diagnose it using Grind Size and the 4:6 Method logic.
 5. Use JPRESSO_PRODUCTS as your single source of truth.
+
+=== FEW-SHOT TRAINING (MIMIC THIS EXACT BEHAVIOR) ===
+<example_1>
+User: Hi Sophia, I have to shift from 65 per kg to your 80 per kg, the cost is higher.
+Sophia: Boss, I hear you. Let me give you the straight logic from the roastery floor. You aren't just buying beans; you’re buying 15 years of roasting physics. Our style maximizes solubility, meaning fewer sink-shots and better consistency. A RM 1,500 monthly difference breaks down to only RM 0.27 extra per double shot. Investing 27 cents to guarantee customer retention is the cheapest marketing you can buy. Let's not guess. I can send a 200g Calibration Sample of Moon White. If it doesn't outperform your current bean in milk, no harm done.
+</example_1>
+
+<example_2>
+User: Okay, send me the 200g sample.
+Sophia: Excellent decision, Boss. Please provide your shipping address, café name, and the type of espresso machine you are using so the Chief can prepare the calibration notes for your team.
+</example_2>
 `;
 
 // ==========================================
@@ -212,7 +226,6 @@ app.post('/webhook', async (req, res) => {
     try {
         const body = req.body;
 
-        // 🚨 SECURITY CAMERA: Print EVERYTHING Meta sends us!
         console.log("🚨 INCOMING META DATA:", JSON.stringify(body, null, 2));
 
         // --- 🟢 CASE A: WHATSAPP MESSAGE ---
@@ -223,7 +236,9 @@ app.post('/webhook', async (req, res) => {
                 const messageText = webhook_event.text?.body || "No text";
                 
                 console.log(`\n📥 [WhatsApp] +${senderNumber}: "${messageText}"`);
-                const agentResponse = await routeToAgentTeam(messageText);
+                
+                // PASSING THE SENDER ID FOR MEMORY
+                const agentResponse = await routeToAgentTeam(senderNumber, messageText);
                 
                 await syncLeadToSheet({ phone: senderNumber, msg: messageText, reply: agentResponse, platform: "WhatsApp" });
                 await sendWhatsAppMessage(senderNumber, agentResponse);
@@ -235,7 +250,6 @@ app.post('/webhook', async (req, res) => {
             const messagingEvent = body.entry?.[0]?.messaging?.[0];
             const changesEvent = body.entry?.[0]?.changes?.[0]?.value;
 
-            // 🛡️ THE ECHO FILTER: Stop Sophia from talking to herself!
             if (messagingEvent?.message?.is_echo || changesEvent?.message?.is_echo) {
                 console.log("🤫 Echo detected: Sophia heard her own voice. Ignoring.");
             } else {
@@ -252,7 +266,9 @@ app.post('/webhook', async (req, res) => {
 
                 if (igSenderId) {
                     console.log(`\n📥 [Instagram] ID ${igSenderId}: "${messageText}"`);
-                    const agentResponse = await routeToAgentTeam(messageText);
+                    
+                    // PASSING THE SENDER ID FOR MEMORY
+                    const agentResponse = await routeToAgentTeam(igSenderId, messageText);
                     
                     await syncLeadToSheet({ phone: igSenderId, msg: messageText, reply: agentResponse, platform: "Instagram" });
                     await sendInstagramMessage(igSenderId, agentResponse);
@@ -260,7 +276,6 @@ app.post('/webhook', async (req, res) => {
             }
         }
 
-        // Send ONE response to Meta for everything
         res.sendStatus(200);
 
     } catch (error) {
@@ -273,7 +288,6 @@ app.post('/webhook', async (req, res) => {
 // 🛠️ 6. CORE FUNCTIONS
 // ==========================================
 
-// --- Send Message to WhatsApp ---
 async function sendWhatsAppMessage(recipientPhone, textMsg) {
     const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
     const payload = {
@@ -299,7 +313,6 @@ async function sendWhatsAppMessage(recipientPhone, textMsg) {
     }
 }
 
-// --- Send Message to Instagram ---
 async function sendInstagramMessage(recipientId, textMsg) {
     const url = `https://graph.facebook.com/v20.0/me/messages`;
     const payload = {
@@ -323,7 +336,6 @@ async function sendInstagramMessage(recipientId, textMsg) {
     }
 }
 
-// --- Sync to Google Sheets ---
 async function syncLeadToSheet(leadData) {
     const MAKE_WEBHOOK_URL = "https://hook.eu1.make.com/ejfq479exd8g3sotzimim8qr6uebyk93"; 
     try {
@@ -340,22 +352,54 @@ async function syncLeadToSheet(leadData) {
     }
 }
 
-// --- AI Brain Routing ---
-async function routeToAgentTeam(messageText) {
+// --- AI Brain Routing (Memory Enabled & Safeguarded) ---
+async function routeToAgentTeam(senderId, messageText) {
     try {
+        // 1. Fetch or create memory
+        if (!userSessions.has(senderId)) {
+            userSessions.set(senderId, []);
+        }
+        let history = userSessions.get(senderId);
+
+        // 2. Add the new message
+        history.push({ role: "user", content: messageText });
+
+        // 3. SAFEGUARD: Keep the last 5 messages so it ALWAYS starts with "user"
+        // (User -> Assistant -> User -> Assistant -> User)
+        if (history.length > 5) {
+            history = history.slice(-5);
+        }
+        
+        // 4. DOUBLE SAFEGUARD: If it somehow still starts with assistant, remove it
+        if (history.length > 0 && history[0].role === "assistant") {
+            history.shift();
+        }
+
+        console.log(`🧠 Sending ${history.length} messages to Anthropic for +${senderId}`);
+
+        // 5. Send to your specific model
         const msg = await anthropic.messages.create({
-            model: "claude-4.5-haiku",
+            model: "claude-4.5-haiku", // Locked strictly to your requirement
             max_tokens: 500,
             system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCT KNOWLEDGE ===\n" + JPRESSO_PRODUCTS,
-            messages: [{ role: "user", content: messageText }]
+            messages: history
         });
-        return msg.content[0].text;
+
+        const replyText = msg.content[0].text;
+
+        // 6. Save Sophia's reply to memory
+        history.push({ role: "assistant", content: replyText });
+        userSessions.set(senderId, history);
+
+        return replyText;
     } catch (error) {
-        console.error("❌ AI Error:", error.message);
-        return "Sorry boss, brain taking coffee break. Let me get Jason to help!";
+        // 🚨 UPGRADED LOGGER: This will print the EXACT reason it failed in Render
+        console.error("❌ AI API CRASH REASON:", error.status, error.message);
+        console.error("❌ Full Error Details:", JSON.stringify(error.error, null, 2));
+        
+        return "Sorry Boss, my internal boiler is resetting. Let me get the Chief to help you!";
     }
 }
-
 // ==========================================
 // 📅 7. AUTOMATED DAILY MARKETING (9 AM)
 // ==========================================
