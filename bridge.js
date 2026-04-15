@@ -352,7 +352,7 @@ async function syncLeadToSheet(leadData) {
     }
 }
 
-// --- AI Brain Routing (Memory Enabled & Safeguarded) ---
+// --- AI Brain Routing (Bulletproof Memory) ---
 async function routeToAgentTeam(senderId, messageText) {
     try {
         // 1. Fetch or create memory
@@ -364,38 +364,55 @@ async function routeToAgentTeam(senderId, messageText) {
         // 2. Add the new message
         history.push({ role: "user", content: messageText });
 
-        // 3. SAFEGUARD: Keep the last 5 messages so it ALWAYS starts with "user"
-        // (User -> Assistant -> User -> Assistant -> User)
-        if (history.length > 5) {
-            history = history.slice(-5);
-        }
-        
-        // 4. DOUBLE SAFEGUARD: If it somehow still starts with assistant, remove it
-        if (history.length > 0 && history[0].role === "assistant") {
-            history.shift();
+        // 3. THE SHOCK ABSORBER: Merge back-to-back messages from the same role
+        // This prevents Anthropic from crashing if a user "double-texts"
+        let safeHistory = [];
+        for (let msg of history) {
+            if (safeHistory.length > 0 && safeHistory[safeHistory.length - 1].role === msg.role) {
+                // Combine them
+                safeHistory[safeHistory.length - 1].content += "\n[Follow-up]: " + msg.content;
+            } else {
+                safeHistory.push({ role: msg.role, content: msg.content });
+            }
         }
 
-        console.log(`🧠 Sending ${history.length} messages to Anthropic for +${senderId}`);
+        // 4. Ensure it ALWAYS starts with the User
+        while (safeHistory.length > 0 && safeHistory[0].role !== "user") {
+            safeHistory.shift();
+        }
 
-        // 5. Send to your specific model
+        // 5. Keep it short (last 5 interactions max)
+        if (safeHistory.length > 5) {
+            safeHistory = safeHistory.slice(-5);
+            // Re-check after slicing
+            if (safeHistory[0].role !== "user") safeHistory.shift(); 
+        }
+
+        console.log(`🧠 Sending ${safeHistory.length} perfectly formatted messages to Claude`);
+
+        // 6. Send to the official Haiku 3.5 model
         const msg = await anthropic.messages.create({
-            model: "claude-3-5-haiku-20241022", // Locked strictly to your requirement
+            model: "claude-3-5-haiku-20241022", 
             max_tokens: 500,
             system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCT KNOWLEDGE ===\n" + JPRESSO_PRODUCTS,
-            messages: history
+            messages: safeHistory
         });
 
         const replyText = msg.content[0].text;
 
-        // 6. Save Sophia's reply to memory
+        // 7. Save Sophia's reply to the raw history
         history.push({ role: "assistant", content: replyText });
         userSessions.set(senderId, history);
 
         return replyText;
+        
     } catch (error) {
-        // 🚨 UPGRADED LOGGER: This will print the EXACT reason it failed in Render
-        console.error("❌ AI API CRASH REASON:", error.status, error.message);
-        console.error("❌ Full Error Details:", JSON.stringify(error.error, null, 2));
+        // 🚨 THE BLACK BOX LOGGER: Prints exact failure reason to Render
+        console.error("\n❌ ================= AI API CRASH =================");
+        console.error("STATUS:", error.status);
+        console.error("MESSAGE:", error.message);
+        console.error("DETAILS:", JSON.stringify(error.error, null, 2));
+        console.error("===================================================\n");
         
         return "Sorry Boss, my internal boiler is resetting. Let me get the Chief to help you!";
     }
