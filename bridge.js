@@ -352,7 +352,7 @@ async function syncLeadToSheet(leadData) {
     }
 }
 
-// --- AI Brain Routing (Perfect Alternation Memory) ---
+// --- AI Brain Routing (Flagship Sonnet Engine & Auto-Cleaning Memory) ---
 async function routeToAgentTeam(senderId, messageText) {
     try {
         // 1. Fetch or create memory
@@ -361,42 +361,39 @@ async function routeToAgentTeam(senderId, messageText) {
         }
         let history = userSessions.get(senderId);
 
-        // Ensure text is completely safe
+        // 2. Ensure text is safe (Prevents crashing if a user sends an image/sticker)
         let safeText = String(messageText).trim();
         if (!safeText) safeText = "[Media/Empty Message Sent]";
 
-        // 2. Add the new message
         history.push({ role: "user", content: safeText });
 
         // 3. THE ULTIMATE ROLE ALTERNATOR
         let formattedMessages = [];
         for (let msg of history) {
             if (formattedMessages.length === 0) {
-                // Must start with user
                 if (msg.role === "user") formattedMessages.push({ role: msg.role, content: msg.content });
             } else {
                 let lastMsg = formattedMessages[formattedMessages.length - 1];
                 if (lastMsg.role === msg.role) {
-                    // Combine if roles are the same (Double text fix)
+                    // Merge double-texts
                     lastMsg.content += "\n\n[Follow-up]: " + msg.content;
                 } else {
-                    // Add new if roles alternate properly
                     formattedMessages.push({ role: msg.role, content: msg.content });
                 }
             }
         }
 
-        // 4. Keep memory lean (last 6 interactions)
+        // 4. Keep memory lean (Last 6 interactions)
         if (formattedMessages.length > 6) {
             formattedMessages = formattedMessages.slice(-6);
             if (formattedMessages[0].role !== "user") formattedMessages.shift();
         }
 
-        console.log(`🧠 Sending ${formattedMessages.length} perfectly formatted messages to Claude`);
+        console.log(`🧠 Sending to Flagship Sonnet 3.5 for +${senderId}`);
 
-        // 5. Send to the Universal Haiku model
+        // 5. Send to the Universal Flagship Model
         const msg = await anthropic.messages.create({
-            model: "claude-3-haiku-20240307", 
+            model: "claude-3-5-sonnet-latest", // 🚀 UPGRADED ENGINE
             max_tokens: 500,
             system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCT KNOWLEDGE ===\n" + JPRESSO_PRODUCTS,
             messages: formattedMessages
@@ -404,8 +401,9 @@ async function routeToAgentTeam(senderId, messageText) {
 
         const replyText = msg.content[0].text;
 
-        // 6. Save Sophia's reply to the raw history
+        // 6. Save Sophia's reply and clean the raw history so it doesn't leak memory
         history.push({ role: "assistant", content: replyText });
+        if (history.length > 15) history = history.slice(-15);
         userSessions.set(senderId, history);
 
         return replyText;
@@ -427,7 +425,7 @@ cron.schedule('0 9 * * *', async () => {
     console.log("☀️ Jpresso Marketing Team is waking up...");
     try {
         const post = await anthropic.messages.create({
-            model: "claude-3-haiku-20240307", 
+            model: "claude-3-5-sonnet-latest", // 🚀 UPGRADED ENGINE
             max_tokens: 300,
             system: "Write a short, viral Instagram caption for Jpresso Coffee about fresh roasting in KL today. Use Manglish.",
             messages: [{ role: "user", content: "Create today's post." }]
