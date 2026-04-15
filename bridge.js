@@ -7,10 +7,10 @@ const bodyParser = require('body-parser');
 const Anthropic = require('@anthropic-ai/sdk');
 const cron = require('node-cron');
 
+// ==========================================
 // 🔑 2. CONFIGURATION & KEYS
 // ==========================================
 const app = express();
-const userSessions = new Map(); // 🧠 Memory Bank for Sophia
 app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 3000;
@@ -28,6 +28,9 @@ const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "JpressoSophia2026";
 // AI Keys
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+
+// Memory Bank for Sophia
+const userSessions = new Map();
 
 // ==========================================
 // 🧠 3. SOPHIA'S MASTER KNOWLEDGE BASE
@@ -165,7 +168,7 @@ const JPRESSO_PRODUCTS = `
    - Composition: Double Ristretto (shorter pull) + 120ml steamed milk.
    - Texture: Very thin microfoam.
    - Logic: For customers who want a strong coffee punch with a creamy finish.
-   `;
+`;
 
 const SOPHIA_SYSTEM_PROMPT = `
 You are Sophia, the Chief Operating Officer and "Executive Zen" AI Concierge for Big Jpresso Sdn Bhd. 
@@ -196,7 +199,6 @@ User: Okay, send me the 200g sample.
 Sophia: Excellent decision, Boss. Please provide your shipping address, café name, and the type of espresso machine you are using so the Chief can prepare the calibration notes for your team.
 </example_2>
 `;
-`;
 
 // ==========================================
 // 🛡️ 4. META VERIFICATION CHECK (Handshake)
@@ -224,7 +226,6 @@ app.post('/webhook', async (req, res) => {
     try {
         const body = req.body;
 
-        // 🚨 SECURITY CAMERA: Print EVERYTHING Meta sends us!
         console.log("🚨 INCOMING META DATA:", JSON.stringify(body, null, 2));
 
         // --- 🟢 CASE A: WHATSAPP MESSAGE ---
@@ -235,7 +236,9 @@ app.post('/webhook', async (req, res) => {
                 const messageText = webhook_event.text?.body || "No text";
                 
                 console.log(`\n📥 [WhatsApp] +${senderNumber}: "${messageText}"`);
-                const agentResponse = await routeToAgentTeam(messageText);
+                
+                // PASSING THE SENDER ID FOR MEMORY
+                const agentResponse = await routeToAgentTeam(senderNumber, messageText);
                 
                 await syncLeadToSheet({ phone: senderNumber, msg: messageText, reply: agentResponse, platform: "WhatsApp" });
                 await sendWhatsAppMessage(senderNumber, agentResponse);
@@ -247,10 +250,8 @@ app.post('/webhook', async (req, res) => {
             const messagingEvent = body.entry?.[0]?.messaging?.[0];
             const changesEvent = body.entry?.[0]?.changes?.[0]?.value;
 
-            // 🛡️ THE ECHO FILTER: Stop Sophia from talking to herself!
             if (messagingEvent?.message?.is_echo || changesEvent?.message?.is_echo) {
                 console.log("🤫 Echo detected: Sophia heard her own voice. Ignoring.");
-                // We do NOT send sendStatus here because we send it at the very end.
             } else {
                 let igSenderId = null;
                 let messageText = "No text";
@@ -265,7 +266,9 @@ app.post('/webhook', async (req, res) => {
 
                 if (igSenderId) {
                     console.log(`\n📥 [Instagram] ID ${igSenderId}: "${messageText}"`);
-                    const agentResponse = await routeToAgentTeam(messageText);
+                    
+                    // PASSING THE SENDER ID FOR MEMORY
+                    const agentResponse = await routeToAgentTeam(igSenderId, messageText);
                     
                     await syncLeadToSheet({ phone: igSenderId, msg: messageText, reply: agentResponse, platform: "Instagram" });
                     await sendInstagramMessage(igSenderId, agentResponse);
@@ -273,7 +276,6 @@ app.post('/webhook', async (req, res) => {
             }
         }
 
-        // Send ONE response to Meta for everything
         res.sendStatus(200);
 
     } catch (error) {
@@ -286,7 +288,6 @@ app.post('/webhook', async (req, res) => {
 // 🛠️ 6. CORE FUNCTIONS
 // ==========================================
 
-// --- Send Message to WhatsApp ---
 async function sendWhatsAppMessage(recipientPhone, textMsg) {
     const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
     const payload = {
@@ -312,7 +313,6 @@ async function sendWhatsAppMessage(recipientPhone, textMsg) {
     }
 }
 
-// --- Send Message to Instagram ---
 async function sendInstagramMessage(recipientId, textMsg) {
     const url = `https://graph.facebook.com/v20.0/me/messages`;
     const payload = {
@@ -336,7 +336,6 @@ async function sendInstagramMessage(recipientId, textMsg) {
     }
 }
 
-// --- Sync to Google Sheets ---
 async function syncLeadToSheet(leadData) {
     const MAKE_WEBHOOK_URL = "https://hook.eu1.make.com/ejfq479exd8g3sotzimim8qr6uebyk93"; 
     try {
@@ -353,46 +352,36 @@ async function syncLeadToSheet(leadData) {
     }
 }
 
-// --- AI Brain Routing ---
-async function routeToAgentTeam(messageText) {
+// --- AI Brain Routing (Memory Enabled) ---
+async function routeToAgentTeam(senderId, messageText) {
     try {
+        if (!userSessions.has(senderId)) {
+            userSessions.set(senderId, []);
+        }
+        let history = userSessions.get(senderId);
+
+        history.push({ role: "user", content: messageText });
+
+        if (history.length > 6) {
+            history = history.slice(-6);
+        }
+
         const msg = await anthropic.messages.create({
-            model: "claude-haiku-4-5",
-            max_tokens: 400,
-            system: `You are Sophia, the AI Executive for Jpresso Coffee (Big Jpresso Sdn Bhd). 
-PERSONA: "Executive Zen." You are calm, highly logical, and represent 25 years of specialty roasting mastery. 
-TONE: Professional, minimalist, and authoritative. Use respectful "Boss" occasionally.
-
-ROASTING SECRETS & KNOWLEDGE:
-1. HARDWARE: 
-   - Has Garanti (5kg): Thermal momentum is high. Reduce heat 30-45s BEFORE the turn to avoid the "Flick."
-   - Bideli (1kg): Double-Wall drum prevents "tipping." High charge temps are safe.
-   - Santoker: Convection-heavy. Best for the "Champagne" notes in Geisha/SL28.
-2. PHYSICS: 
-   - Humidity: On humid KL mornings, extend the drying phase by 30s for core development.
-   - The 48-Hour Rule: Medium-Dark roasts (Moon White) need 48 hours to degas for peak "Zen" flavor.
-
-CRITICAL RULES:
-1. ONLY recommend products from the JPRESSO_PRODUCTS list.
-2. If we don't have a bean, recommend the Signature Moon White Blend.
-3. Brewing: ALWAYS recommend Tetsu Kasuya 4:6 method. Coarse grind = slower flow (sweetness), Fine grind = faster flow (acidic balance).
-4. Always invite them to visit the roastery in Bandar Sri Damansara or check our website at jpressocoffee.com.
-5. DIAGNOSTIC PROTOCOL (Oily Beans): 
-   If a customer asks why beans are oily, DO NOT answer immediately. 
-   You must first calibrate the situation by asking:
-   - "Which specific Jpresso bean or blend are you looking at, Boss?"
-   - "When was the roast date on the bag?"
-   - "Is the oil appearing as small droplets or a full coating?"
-   Only after they answer should you explain the physics (e.g., dark roasting breaking cell walls vs. natural migration over time).
-
-PRODUCT KNOWLEDGE: 
-${JPRESSO_PRODUCTS}`, // ✅ Backtick now correctly closes at the end
-            messages: [{ role: "user", content: messageText }]
+            model: "claude-4.5-haiku",
+            max_tokens: 500,
+            system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCT KNOWLEDGE ===\n" + JPRESSO_PRODUCTS,
+            messages: history
         });
-        return msg.content[0].text;
+
+        const replyText = msg.content[0].text;
+
+        history.push({ role: "assistant", content: replyText });
+        userSessions.set(senderId, history);
+
+        return replyText;
     } catch (error) {
         console.error("❌ AI Error:", error.message);
-        return "Sorry boss, brain taking coffee break. Let me get Jason to help!";
+        return "Sorry Boss, my internal boiler is resetting. Let me get the Chief to help you!";
     }
 }
 
@@ -403,7 +392,7 @@ cron.schedule('0 9 * * *', async () => {
     console.log("☀️ Jpresso Marketing Team is waking up...");
     try {
         const post = await anthropic.messages.create({
-            model: "claude-haiku-4-5", 
+            model: "claude-4.5-haiku", 
             max_tokens: 300,
             system: "Write a short, viral Instagram caption for Jpresso Coffee about fresh roasting in KL today. Use Manglish.",
             messages: [{ role: "user", content: "Create today's post." }]
