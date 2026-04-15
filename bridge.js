@@ -391,7 +391,7 @@ async function routeToAgentTeam(senderId, messageText) {
 
         // 6. Send to YOUR specific model string
         const msg = await anthropic.messages.create({
-            model: "claude-4.5-haiku", // Changed back to your working string
+            model: "claude-3-haiku-20240307", // Changed back to your working string
             max_tokens: 500,
             system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCT KNOWLEDGE ===\n" + JPRESSO_PRODUCTS,
             messages: safeHistory
@@ -424,7 +424,7 @@ cron.schedule('0 9 * * *', async () => {
     console.log("☀️ Jpresso Marketing Team is waking up...");
     try {
         const post = await anthropic.messages.create({
-            model: "claude-4.5-haiku", 
+            model: "claude-3-haiku-20240307", 
             max_tokens: 300,
             system: "Write a short, viral Instagram caption for Jpresso Coffee about fresh roasting in KL today. Use Manglish.",
             messages: [{ role: "user", content: "Create today's post." }]
