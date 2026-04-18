@@ -402,7 +402,7 @@ async function routeToAgentTeam(senderId, messageText) {
 
         // 6. Send to the EXACT model your account permits
         const msg = await anthropic.messages.create({
-            model: "claude-sonnet-4-6", // 🚀 The REAL 2026 Speed Demon
+            const model = "claude-3-5-sonnet-20240620";
             max_tokens: 500,
             system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCT KNOWLEDGE ===\n" + JPRESSO_PRODUCTS,
             messages: formattedMessages
@@ -435,7 +435,7 @@ cron.schedule('0 9 * * *', async () => {
     console.log("☀️ Jpresso Marketing Team is waking up...");
     try {
         const post = await anthropic.messages.create({
-            model: "claude-sonnet-4-6", // 🚀 The REAL 2026 Speed Demon 
+            const model = "claude-3-5-sonnet-20240620"; 
             max_tokens: 300,
             system: "Write a short, viral Instagram caption for Jpresso Coffee about fresh roasting in KL today. Use Manglish.",
             messages: [{ role: "user", content: "Create today's post." }]
