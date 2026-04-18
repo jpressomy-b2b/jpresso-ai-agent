@@ -393,7 +393,7 @@ async function routeToAgentTeam(senderId, messageText) {
 
         // 🟢 FIXED: "const" removed from inside the object!
         const msg = await anthropic.messages.create({
-            model: ACTIVE_MODEL, 
+            const ACTIVE_MODEL = "claude-4.6-sonnet"; // 🚀 The workable 4.6 Master Key 
             max_tokens: 500,
             system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCT KNOWLEDGE ===\n" + JPRESSO_PRODUCTS,
             messages: formattedMessages
@@ -424,7 +424,7 @@ cron.schedule('0 9 * * *', async () => {
     try {
         // 🟢 FIXED: "const" removed from inside the object!
         const post = await anthropic.messages.create({
-            model: ACTIVE_MODEL, 
+            const ACTIVE_MODEL = "claude-4.6-sonnet"; // 🚀 The workable 4.6 Master Key 
             max_tokens: 300,
             system: "Write a short, viral Instagram caption for Jpresso Coffee about fresh roasting in KL today. Use Manglish.",
             messages: [{ role: "user", content: "Create today's post." }]
