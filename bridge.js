@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 3000;
 
 // WhatsApp Keys
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN; 
-const PHONE_NUMBER_ID = process.env.META_PHONE_ID || "1058678540664095"; 
+const phoneId = process.env.WA_PHONE_NUMBER_ID; 
 
 // Instagram Keys
 const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN; 
