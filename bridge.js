@@ -15,9 +15,9 @@ app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 3000;
 
-// WhatsApp Keys
+// WhatsApp & Meta Keys
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN; 
-const phoneId = "1124375407418121"; 
+const PHONE_NUMBER_ID = "1124375407418121"; // Fixed to match the sending function
 
 // Instagram Keys
 const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN; 
@@ -25,9 +25,10 @@ const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN;
 // Verify Token
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "JpressoSophia2026"; 
 
-// AI Keys (DECLARED STRICTLY ONCE)
+// AI Keys & Config
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+const ACTIVE_MODEL = "claude-3-5-sonnet-20240620"; // Declared strictly once!
 
 // Memory Bank for Sophia
 const userSessions = new Map();
@@ -237,7 +238,6 @@ app.post('/webhook', async (req, res) => {
                 
                 console.log(`\n📥 [WhatsApp] +${senderNumber}: "${messageText}"`);
                 
-                // PASSING THE SENDER ID FOR MEMORY
                 const agentResponse = await routeToAgentTeam(senderNumber, messageText);
                 
                 await syncLeadToSheet({ phone: senderNumber, msg: messageText, reply: agentResponse, platform: "WhatsApp" });
@@ -267,7 +267,6 @@ app.post('/webhook', async (req, res) => {
                 if (igSenderId) {
                     console.log(`\n📥 [Instagram] ID ${igSenderId}: "${messageText}"`);
                     
-                    // PASSING THE SENDER ID FOR MEMORY
                     const agentResponse = await routeToAgentTeam(igSenderId, messageText);
                     
                     await syncLeadToSheet({ phone: igSenderId, msg: messageText, reply: agentResponse, platform: "Instagram" });
@@ -352,7 +351,7 @@ async function syncLeadToSheet(leadData) {
     }
 }
 
-// --- AI Brain Routing (3.5 Haiku + Ultimate Alternator) ---
+// --- AI Brain Routing (Ultimate Alternator) ---
 async function routeToAgentTeam(senderId, messageText) {
     try {
         if (!userSessions.has(senderId)) {
@@ -360,49 +359,41 @@ async function routeToAgentTeam(senderId, messageText) {
         }
         let history = userSessions.get(senderId);
 
-        // 1. Safe text extraction
         let safeText = String(messageText).trim();
         if (!safeText) safeText = "[Media/Empty Message Sent]";
 
-        // 2. Add raw message to history
         history.push({ role: "user", content: safeText });
 
-        // 3. STRICT ROLE ALTERNATOR (Fixes the 400 Error completely)
         let formattedMessages = [];
         for (let msg of history) {
             if (formattedMessages.length === 0) {
-                // Array MUST start with a user message
                 if (msg.role === "user") {
                     formattedMessages.push({ role: "user", content: msg.content });
                 }
             } else {
                 let lastMsg = formattedMessages[formattedMessages.length - 1];
                 if (lastMsg.role === msg.role) {
-                    // If two users message in a row, combine them. No crashing!
                     lastMsg.content += "\n\n[Follow-up]: " + msg.content;
                 } else {
-                    // Alternate normally
                     formattedMessages.push({ role: msg.role, content: msg.content });
                 }
             }
         }
 
-        // 4. Anthropic REQUIRES the last message sent to be from the "user"
         while (formattedMessages.length > 0 && formattedMessages[formattedMessages.length - 1].role !== "user") {
             formattedMessages.pop();
         }
 
-        // 5. Keep memory lean (Last 5 interactions)
         if (formattedMessages.length > 5) {
             formattedMessages = formattedMessages.slice(-5);
             if (formattedMessages[0].role !== "user") formattedMessages.shift();
         }
 
-        console.log(`🧠 Engine Active: Sending ${formattedMessages.length} strict messages to 3.5 Haiku`);
+        console.log(`🧠 Engine Active: Sending ${formattedMessages.length} strict messages to ${ACTIVE_MODEL}`);
 
-        // 6. Send to the EXACT model your account permits
+        // 🟢 FIXED: "const" removed from inside the object!
         const msg = await anthropic.messages.create({
-            const model = "claude-3-5-sonnet-20240620";
+            model: ACTIVE_MODEL, 
             max_tokens: 500,
             system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCT KNOWLEDGE ===\n" + JPRESSO_PRODUCTS,
             messages: formattedMessages
@@ -410,18 +401,15 @@ async function routeToAgentTeam(senderId, messageText) {
 
         const replyText = msg.content[0].text;
 
-        // 7. Save and clean up
         history.push({ role: "assistant", content: replyText });
-        if (history.length > 20) history = history.slice(-20); // Prevents memory leaks
+        if (history.length > 20) history = history.slice(-20); 
         userSessions.set(senderId, history);
 
         return replyText;
         
     } catch (error) {
         console.error("\n❌ ================= AI API CRASH =================");
-        console.error("STATUS:", error.status);
         console.error("MESSAGE:", error.message);
-        if (error.error) console.error("DETAILS:", JSON.stringify(error.error, null, 2));
         console.error("===================================================\n");
         
         return "Sorry Boss, my internal boiler is resetting. Let me get the Chief to help you!";
@@ -434,8 +422,9 @@ async function routeToAgentTeam(senderId, messageText) {
 cron.schedule('0 9 * * *', async () => {
     console.log("☀️ Jpresso Marketing Team is waking up...");
     try {
+        // 🟢 FIXED: "const" removed from inside the object!
         const post = await anthropic.messages.create({
-            const model = "claude-3-5-sonnet-20240620"; 
+            model: ACTIVE_MODEL, 
             max_tokens: 300,
             system: "Write a short, viral Instagram caption for Jpresso Coffee about fresh roasting in KL today. Use Manglish.",
             messages: [{ role: "user", content: "Create today's post." }]
@@ -449,12 +438,7 @@ cron.schedule('0 9 * * *', async () => {
 // ==========================================
 // 🚀 8. START SERVER
 // ==========================================
-
-// Ensure these are defined before the server starts!
-const phoneId = "1124375407418121"; 
-const model = "claude-3-5-sonnet-20240620"; 
-
 app.listen(PORT, () => {
     console.log(`🟢 Jpresso Bridge Active on port ${PORT}`);
-    console.log(`🚀 System Active | Phone: ${phoneId} | Brain: ${model}`);
+    console.log(`🚀 System Active | Phone: ${PHONE_NUMBER_ID} | Brain: ${ACTIVE_MODEL}`);
 });
