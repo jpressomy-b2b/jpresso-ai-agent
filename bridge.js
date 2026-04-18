@@ -449,6 +449,12 @@ cron.schedule('0 9 * * *', async () => {
 // ==========================================
 // 🚀 8. START SERVER
 // ==========================================
+
+// Ensure these are defined before the server starts!
+const phoneId = "1124375407418121"; 
+const model = "claude-3-5-sonnet-20240620"; 
+
 app.listen(PORT, () => {
     console.log(`🟢 Jpresso Bridge Active on port ${PORT}`);
+    console.log(`🚀 System Active | Phone: ${phoneId} | Brain: ${model}`);
 });
