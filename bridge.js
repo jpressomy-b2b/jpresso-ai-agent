@@ -440,5 +440,5 @@ cron.schedule('0 9 * * *', async () => {
 // ==========================================
 app.listen(PORT, () => {
     console.log(`🟢 Jpresso Bridge Active on port ${PORT}`);
-    console.log(`🚀 System Active | Phone: ${PHONE_NUMBER_ID} | Brain: ${ACTIVE_MODEL}`);
+    console.log(`🚀 System Active | Phone: ${1124375407418121} | Brain: ${claude-4.6-sonnet}`);
 });
