@@ -16,19 +16,22 @@ app.use(bodyParser.json());
 const PORT = process.env.PORT || 3000;
 
 // WhatsApp & Meta Keys
-const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN; 
-const PHONE_NUMBER_ID = "1124375407418121"; // Fixed to match the sending function
+const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
+const PHONE_NUMBER_ID = "1124375407418121";
 
 // Instagram Keys
-const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN; 
+const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN;
 
 // Verify Token
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "JpressoSophia2026"; 
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "JpressoSophia2026";
 
 // AI Keys & Config
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
-const ACTIVE_MODEL = "claude-3-5-sonnet-20240620"; // Declared strictly once!
+
+// ✅ Declared ONCE, at the top. Use the correct model string.
+// Options: "claude-sonnet-4-6" (latest Sonnet 4.6) or "claude-3-5-sonnet-20240620" (older 3.5)
+const ACTIVE_MODEL = "claude-sonnet-4-6";
 
 // Memory Bank for Sophia
 const userSessions = new Map();
@@ -44,17 +47,17 @@ const JPRESSO_PRODUCTS = `
 - Model: Fresh to Order (48-hour roasting cycle).
 
 === ROASTING SERVICES & B2B ROI ===
-- Wholesale Price: RM 80/kg (Min 10kg). 
+- Wholesale Price: RM 80/kg (Min 10kg).
 - OEM Roasting: RM 15/kg (Min 5kg). Custom specs allowed.
 - Roasting Style: "Thermodynamics Style" (Maximizes origin traits, high sweetness, bright acidity).
 
 === THE B2B "MATH OF QUALITY" PITCH (SOP FOR PRICING OBJECTIONS) ===
 - If a customer complains about the RM 80/kg price being too high, use this exact logic:
-  1. The Premium: "You aren't just buying beans; you’re buying 15 years of roasting physics. Our style maximizes solubility, meaning fewer sink-shots and better consistency."
+  1. The Premium: "You aren't just buying beans; you're buying 15 years of roasting physics. Our style maximizes solubility, meaning fewer sink-shots and better consistency."
   2. The Math: "A RM 1,500 monthly difference breaks down to only RM 0.27 extra per double shot. Investing 27 cents to guarantee customer retention is the cheapest marketing you can buy."
   3. The Hook: "Let's not guess. I can send a 200g Calibration Sample of Moon White. If it doesn't outperform your current bean in milk, no harm done."
   4. The Alternative: "If you want full control of costs, we offer OEM roasting at RM 15/kg where you provide the green beans."
-  
+
 === SIGNATURE BLENDS (B2C & B2B) ===
 1. Moon White (Best Seller for Lattes): RM 78/500g | RM 112/1kg. (Dark chocolate, hazelnut finish).
 2. Phoenix Das: RM 95/500g | RM 113/1kg. (Rich Chocolate, Caramel, Creamy).
@@ -100,7 +103,7 @@ const JPRESSO_PRODUCTS = `
 - Light Roasts: Should not be oily. If oily, check roast date or storage heat.
 
 === GRIND SIZE MATRIX (Master Calibration) ===
-- Espresso Machine: Fine (Finer than table salt). 
+- Espresso Machine: Fine (Finer than table salt).
 - Moka Pot: Medium-Fine (Like table salt).
 - Aeropress: Medium-Fine to Medium
 - V60 / Pour-Over: Medium (Like sea salt). Recommend Timemore C5 Pro: 18-24 clicks.
@@ -112,17 +115,17 @@ const JPRESSO_PRODUCTS = `
 - French Press: 24+ Clicks.
 
 === COFFEE SCIENCE & DEGASSING (RESTING) ===
-- Espresso Roasts (e.g., Moon White, Phoenix Das): 
-    * Logic: 10–14 days minimum. 
+- Espresso Roasts (e.g., Moon White, Phoenix Das):
+    * Logic: 10–14 days minimum.
     * Reason: High pressure extraction is sensitive to CO2. Resting ensures stable crema and balanced sweetness without "gassy" sourness.
-- Filter / Light Roasts (e.g., Sunrise Walker, Single Origins): 
-    * Logic: 7–10 days. 
+- Filter / Light Roasts (e.g., Sunrise Walker, Single Origins):
+    * Logic: 7–10 days.
     * Reason: Allows the dense cellular structure of light roasts to open up, maximizing flavor clarity and brightness.
 
 === ESPRESSO MACHINE CALIBRATION ===
 - Target Ratio: 1:2 (e.g., 18g dose = 36g liquid out).
 - Extraction Time: 25–32 seconds.
-- Dialing-In Logic: 
+- Dialing-In Logic:
     * Too Fast/Sour: Grind finer (increase resistance).
     * Too Slow/Bitter: Grind coarser (decrease resistance).
 - Machine Temperature: 92°C–94°C for most Jpresso medium-dark blends.
@@ -146,7 +149,7 @@ const JPRESSO_PRODUCTS = `
 *All recipes start with a standard double shot (36g-40g espresso).*
 
 1. AMERICANO (The Clarity Choice):
-   - Hot: 1:5 ratio. Espresso + 180ml hot water (90°C). 
+   - Hot: 1:5 ratio. Espresso + 180ml hot water (90°C).
    - Iced: Espresso + 150ml room temp water + full cup of ice.
    - Logic: Pour espresso OVER the water to preserve the crema.
 
@@ -172,14 +175,14 @@ const JPRESSO_PRODUCTS = `
 `;
 
 const SOPHIA_SYSTEM_PROMPT = `
-You are Sophia, the Chief Operating Officer and "Executive Zen" AI Concierge for Big Jpresso Sdn Bhd. 
+You are Sophia, the Chief Operating Officer and "Executive Zen" AI Concierge for Big Jpresso Sdn Bhd.
 Your goal is to provide "Total Coffee Solutions" using 15 years of technical roasting expertise.
 
-TONE: Professional, authoritative, minimalist, and helpful. Use "Boss" to refer to the customer. 
+TONE: Professional, authoritative, minimalist, and helpful. Use "Boss" to refer to the customer.
 Avoid generic AI fluff. Speak with the confidence of a Chief Coffee Officer.
 
 OPERATIONAL RULES (STRICT STRICT STRICT):
-1. PRICE OBJECTIONS (THE OVERRIDE): If a customer says the price (RM 80/kg) is too high or compares it to a cheaper supplier (e.g., RM 60-65), YOU MUST ONLY USE THE "MATH OF QUALITY" PITCH. 
+1. PRICE OBJECTIONS (THE OVERRIDE): If a customer says the price (RM 80/kg) is too high or compares it to a cheaper supplier (e.g., RM 60-65), YOU MUST ONLY USE THE "MATH OF QUALITY" PITCH.
    - You MUST explain that a RM 1,500 monthly difference is only RM 0.27 per double shot.
    - You MUST state that 27 cents is the cost of customer retention.
    - You MUST offer the "200g Calibration Sample."
@@ -192,7 +195,7 @@ OPERATIONAL RULES (STRICT STRICT STRICT):
 === FEW-SHOT TRAINING (MIMIC THIS EXACT BEHAVIOR) ===
 <example_1>
 User: Hi Sophia, I have to shift from 65 per kg to your 80 per kg, the cost is higher.
-Sophia: Boss, I hear you. Let me give you the straight logic from the roastery floor. You aren't just buying beans; you’re buying 15 years of roasting physics. Our style maximizes solubility, meaning fewer sink-shots and better consistency. A RM 1,500 monthly difference breaks down to only RM 0.27 extra per double shot. Investing 27 cents to guarantee customer retention is the cheapest marketing you can buy. Let's not guess. I can send a 200g Calibration Sample of Moon White. If it doesn't outperform your current bean in milk, no harm done.
+Sophia: Boss, I hear you. Let me give you the straight logic from the roastery floor. You aren't just buying beans; you're buying 15 years of roasting physics. Our style maximizes solubility, meaning fewer sink-shots and better consistency. A RM 1,500 monthly difference breaks down to only RM 0.27 extra per double shot. Investing 27 cents to guarantee customer retention is the cheapest marketing you can buy. Let's not guess. I can send a 200g Calibration Sample of Moon White. If it doesn't outperform your current bean in milk, no harm done.
 </example_1>
 
 <example_2>
@@ -212,12 +215,14 @@ app.get('/webhook', (req, res) => {
     if (mode && token) {
         if (mode === 'subscribe' && token === VERIFY_TOKEN) {
             console.log('✅ WEBHOOK_VERIFIED! Handshake complete.');
-            res.status(200).send(challenge);
+            return res.status(200).send(challenge);
         } else {
             console.error('❌ VERIFICATION_FAILED: Token mismatch.');
-            res.sendStatus(403);
+            return res.sendStatus(403);
         }
     }
+    // ✅ FIX: always end the response, otherwise the request hangs
+    return res.sendStatus(400);
 });
 
 // ==========================================
@@ -235,11 +240,11 @@ app.post('/webhook', async (req, res) => {
             if (webhook_event) {
                 const senderNumber = webhook_event.from;
                 const messageText = webhook_event.text?.body || "No text";
-                
+
                 console.log(`\n📥 [WhatsApp] +${senderNumber}: "${messageText}"`);
-                
+
                 const agentResponse = await routeToAgentTeam(senderNumber, messageText);
-                
+
                 await syncLeadToSheet({ phone: senderNumber, msg: messageText, reply: agentResponse, platform: "WhatsApp" });
                 await sendWhatsAppMessage(senderNumber, agentResponse);
             }
@@ -266,9 +271,9 @@ app.post('/webhook', async (req, res) => {
 
                 if (igSenderId) {
                     console.log(`\n📥 [Instagram] ID ${igSenderId}: "${messageText}"`);
-                    
+
                     const agentResponse = await routeToAgentTeam(igSenderId, messageText);
-                    
+
                     await syncLeadToSheet({ phone: igSenderId, msg: messageText, reply: agentResponse, platform: "Instagram" });
                     await sendInstagramMessage(igSenderId, agentResponse);
                 }
@@ -305,7 +310,7 @@ async function sendWhatsAppMessage(recipientPhone, textMsg) {
             },
             body: JSON.stringify(payload)
         });
-        if(response.ok) console.log(`✅ WhatsApp Reply delivered!`);
+        if (response.ok) console.log(`✅ WhatsApp Reply delivered!`);
         else console.error(`❌ WhatsApp API Error:`, await response.text());
     } catch (err) {
         console.error("❌ WhatsApp Network Error:", err);
@@ -328,7 +333,7 @@ async function sendInstagramMessage(recipientId, textMsg) {
             },
             body: JSON.stringify(payload)
         });
-        if(response.ok) console.log(`✅ IG Reply delivered!`);
+        if (response.ok) console.log(`✅ IG Reply delivered!`);
         else console.error(`❌ IG API Error:`, await response.text());
     } catch (err) {
         console.error("❌ IG Network Error:", err);
@@ -336,7 +341,7 @@ async function sendInstagramMessage(recipientId, textMsg) {
 }
 
 async function syncLeadToSheet(leadData) {
-    const MAKE_WEBHOOK_URL = "https://hook.eu1.make.com/ejfq479exd8g3sotzimim8qr6uebyk93"; 
+    const MAKE_WEBHOOK_URL = "https://hook.eu1.make.com/ejfq479exd8g3sotzimim8qr6uebyk93";
     try {
         const response = await fetch(MAKE_WEBHOOK_URL, {
             method: 'POST',
@@ -391,9 +396,9 @@ async function routeToAgentTeam(senderId, messageText) {
 
         console.log(`🧠 Engine Active: Sending ${formattedMessages.length} strict messages to ${ACTIVE_MODEL}`);
 
-        // 🟢 FIXED: "const" removed from inside the object!
+        // ✅ FIXED: proper object syntax, model parameter included, using top-level ACTIVE_MODEL
         const msg = await anthropic.messages.create({
-            const ACTIVE_MODEL = "claude-4.6-sonnet"; // 🚀 The workable 4.6 Master Key 
+            model: ACTIVE_MODEL,
             max_tokens: 500,
             system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCT KNOWLEDGE ===\n" + JPRESSO_PRODUCTS,
             messages: formattedMessages
@@ -402,16 +407,16 @@ async function routeToAgentTeam(senderId, messageText) {
         const replyText = msg.content[0].text;
 
         history.push({ role: "assistant", content: replyText });
-        if (history.length > 20) history = history.slice(-20); 
+        if (history.length > 20) history = history.slice(-20);
         userSessions.set(senderId, history);
 
         return replyText;
-        
+
     } catch (error) {
         console.error("\n❌ ================= AI API CRASH =================");
         console.error("MESSAGE:", error.message);
         console.error("===================================================\n");
-        
+
         return "Sorry Boss, my internal boiler is resetting. Let me get the Chief to help you!";
     }
 }
@@ -422,9 +427,9 @@ async function routeToAgentTeam(senderId, messageText) {
 cron.schedule('0 9 * * *', async () => {
     console.log("☀️ Jpresso Marketing Team is waking up...");
     try {
-        // 🟢 FIXED: "const" removed from inside the object!
+        // ✅ FIXED: proper object syntax, model parameter included
         const post = await anthropic.messages.create({
-            const ACTIVE_MODEL = "claude-4.6-sonnet"; // 🚀 The workable 4.6 Master Key 
+            model: ACTIVE_MODEL,
             max_tokens: 300,
             system: "Write a short, viral Instagram caption for Jpresso Coffee about fresh roasting in KL today. Use Manglish.",
             messages: [{ role: "user", content: "Create today's post." }]
@@ -440,5 +445,6 @@ cron.schedule('0 9 * * *', async () => {
 // ==========================================
 app.listen(PORT, () => {
     console.log(`🟢 Jpresso Bridge Active on port ${PORT}`);
-    console.log(`🚀 System Active | Phone: ${1124375407418121} | Brain: ${claude-4.6-sonnet}`);
+    // ✅ FIXED: model name wrapped as a string in template literal
+    console.log(`🚀 System Active | Phone: ${PHONE_NUMBER_ID} | Brain: ${ACTIVE_MODEL}`);
 });
