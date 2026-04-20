@@ -29,8 +29,13 @@ const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "JpressoSophia2026";
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
-// ✅ Declared ONCE, at the top. Use the correct model string.
+// ✅ Model config
 const ACTIVE_MODEL = "claude-sonnet-4-6";
+
+// 🎯 APPROVAL WORKFLOW CONFIG
+const BOSS_PHONE = "60122393232"; // Jason's WhatsApp for marketing approvals
+const pendingDrafts = new Map(); // Stores today's drafts awaiting approval
+const approvedPosts = []; // Log of approved captions ready to publish
 
 // Memory Bank for Sophia
 const userSessions = new Map();
@@ -232,7 +237,6 @@ app.post('/webhook', async (req, res) => {
         const receivedAt = new Date().toISOString();
 
         // 🔇 Silence WhatsApp status callbacks (sent/delivered/read receipts)
-        // These are NOT messages — just delivery confirmations from Meta.
         if (body.entry?.[0]?.changes?.[0]?.value?.statuses) {
             console.log(`📬 [${receivedAt}] WA status callback (ignored)`);
             return res.sendStatus(200);
@@ -244,7 +248,6 @@ app.post('/webhook', async (req, res) => {
             return res.sendStatus(200);
         }
 
-        // Real message — log it clearly with timestamp
         console.log(`\n📬 [${receivedAt}] INCOMING MESSAGE:`, JSON.stringify(body, null, 2));
 
         // --- 🟢 CASE A: WHATSAPP MESSAGE ---
@@ -256,8 +259,14 @@ app.post('/webhook', async (req, res) => {
 
                 console.log(`📥 [WhatsApp] +${senderNumber}: "${messageText}"`);
 
-                const agentResponse = await routeToAgentTeam(senderNumber, messageText);
+                // 🎯 CHECK IF IT'S BOSS SENDING A MARKETING APPROVAL REPLY
+                if (senderNumber === BOSS_PHONE && isMarketingApprovalReply(messageText)) {
+                    await handleMarketingApproval(senderNumber, messageText);
+                    return res.sendStatus(200);
+                }
 
+                // Otherwise, normal customer service flow
+                const agentResponse = await routeToAgentTeam(senderNumber, messageText);
                 await syncLeadToSheet({ phone: senderNumber, msg: messageText, reply: agentResponse, platform: "WhatsApp" });
                 await sendWhatsAppMessage(senderNumber, agentResponse);
             }
@@ -286,7 +295,6 @@ app.post('/webhook', async (req, res) => {
                     console.log(`📥 [Instagram] ID ${igSenderId}: "${messageText}"`);
 
                     const agentResponse = await routeToAgentTeam(igSenderId, messageText);
-
                     await syncLeadToSheet({ phone: igSenderId, msg: messageText, reply: agentResponse, platform: "Instagram" });
                     await sendInstagramMessage(igSenderId, agentResponse);
                 }
@@ -434,27 +442,167 @@ async function routeToAgentTeam(senderId, messageText) {
 }
 
 // ==========================================
-// 📅 7. AUTOMATED DAILY MARKETING (9 AM)
+// 📅 7. MARKETING APPROVAL WORKFLOW
 // ==========================================
+
+// 🎨 Generate 3 unique caption drafts
+async function generateThreeDrafts() {
+    const drafts = [];
+    const angles = [
+        "Focus on the FRESHNESS and 48-hour fresh-to-order roasting. Tone: energetic, proud, Manglish-friendly.",
+        "Focus on the CRAFT and 15 years of roasting physics. Tone: sophisticated, Chief Coffee Officer vibe, slightly refined.",
+        "Focus on a SPECIFIC JPRESSO BEAN (pick one from the knowledge base like Moon White, Sunrise Walker, or Phoenix Das). Tone: storytelling, sensory, Malaysian coffee culture."
+    ];
+
+    for (let i = 0; i < 3; i++) {
+        try {
+            const post = await anthropic.messages.create({
+                model: ACTIVE_MODEL,
+                max_tokens: 400,
+                system: `You are the Jpresso Coffee marketing team writing for Instagram + Facebook page in Malaysia.
+
+PRODUCT CONTEXT: ${JPRESSO_PRODUCTS}
+
+RULES:
+- Keep caption under 150 words
+- Use Manglish naturally (lah, can or not, weh, boss)
+- 5-8 strategic emojis maximum
+- 8-10 relevant hashtags at the end (mix of branded #JpressoCoffee and discovery tags like #KLCoffee #MalaysiaCoffee)
+- Include a clear call-to-action
+- Works for BOTH Instagram and Facebook page (avoid Instagram-only formatting)`,
+                messages: [{
+                    role: "user",
+                    content: `Write ONE caption. ${angles[i]} Make it distinct from standard generic posts.`
+                }]
+            });
+            drafts.push(post.content[0].text.trim());
+        } catch (err) {
+            console.error(`❌ Draft ${i + 1} failed:`, err.message);
+            drafts.push(`[Draft ${i + 1} generation failed — retry tomorrow]`);
+        }
+    }
+    return drafts;
+}
+
+// 📤 Format + send the 3 drafts to Boss via WhatsApp
+async function sendDraftsToBoss(drafts) {
+    const today = new Date().toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    const message = `☀️ Good morning, Boss! Here are 3 IG + FB draft captions for ${today}:
+
+━━━━━ DRAFT 1 ━━━━━
+${drafts[0]}
+
+━━━━━ DRAFT 2 ━━━━━
+${drafts[1]}
+
+━━━━━ DRAFT 3 ━━━━━
+${drafts[2]}
+
+━━━━━━━━━━━━━━━━━
+Reply to me:
+✅ PICK 1  — approve draft 1
+✅ PICK 2  — approve draft 2
+✅ PICK 3  — approve draft 3
+🔄 RETRY   — generate 3 new drafts
+❌ SKIP    — skip today
+
+— Sophia`;
+
+    // Store drafts in memory so we can recall them when Boss replies
+    pendingDrafts.set(BOSS_PHONE, {
+        drafts: drafts,
+        sentAt: new Date().toISOString()
+    });
+
+    await sendWhatsAppMessage(BOSS_PHONE, message);
+    console.log(`📤 Sent 3 drafts to Boss (${BOSS_PHONE}) for approval.`);
+}
+
+// 🔍 Detect if Boss's message is a marketing reply (vs a regular customer query)
+function isMarketingApprovalReply(messageText) {
+    const text = messageText.trim().toUpperCase();
+    const keywords = ['PICK 1', 'PICK 2', 'PICK 3', 'RETRY', 'SKIP'];
+    // Only treat as marketing reply if Boss has pending drafts AND message matches keywords
+    return pendingDrafts.has(BOSS_PHONE) && keywords.some(k => text === k || text.startsWith(k));
+}
+
+// ⚙️ Handle Boss's approval choice
+async function handleMarketingApproval(senderPhone, messageText) {
+    const text = messageText.trim().toUpperCase();
+    const pending = pendingDrafts.get(BOSS_PHONE);
+
+    if (!pending) {
+        await sendWhatsAppMessage(BOSS_PHONE, "Boss, I have no pending drafts right now. Tomorrow at 9 AM I'll send fresh ones! ☀️");
+        return;
+    }
+
+    // PICK 1 / 2 / 3
+    if (text.startsWith('PICK')) {
+        const pickNum = parseInt(text.split(' ')[1]);
+        if (pickNum >= 1 && pickNum <= 3) {
+            const approved = pending.drafts[pickNum - 1];
+            approvedPosts.push({
+                caption: approved,
+                approvedAt: new Date().toISOString(),
+                pickNumber: pickNum
+            });
+
+            const confirmMsg = `✅ Approved, Boss! Draft ${pickNum} is ready to publish.
+
+Copy this for IG + FB:
+━━━━━━━━━━━━━━━
+${approved}
+━━━━━━━━━━━━━━━
+
+(Saved to approved log. Tomorrow 9 AM = new batch.)`;
+
+            await sendWhatsAppMessage(BOSS_PHONE, confirmMsg);
+            pendingDrafts.delete(BOSS_PHONE);
+            console.log(`✅ Boss approved Draft ${pickNum}.`);
+            return;
+        }
+    }
+
+    // RETRY — generate 3 new drafts
+    if (text === 'RETRY') {
+        await sendWhatsAppMessage(BOSS_PHONE, "🔄 Regenerating 3 new drafts, Boss... give me 30 seconds.");
+        const newDrafts = await generateThreeDrafts();
+        await sendDraftsToBoss(newDrafts);
+        return;
+    }
+
+    // SKIP — dismiss today's drafts
+    if (text === 'SKIP') {
+        pendingDrafts.delete(BOSS_PHONE);
+        await sendWhatsAppMessage(BOSS_PHONE, "❌ Skipped today's marketing. See you tomorrow 9 AM, Boss! ☕");
+        console.log(`❌ Boss skipped today's marketing.`);
+        return;
+    }
+}
+
+// ==========================================
+// 📅 8. CRON JOB — 9 AM MALAYSIA TIME DAILY
+// ==========================================
+// Malaysia is UTC+8, so 9 AM MYT = 1 AM UTC
+// cron format: "minute hour day-of-month month day-of-week"
 cron.schedule('0 9 * * *', async () => {
-    console.log("☀️ Jpresso Marketing Team is waking up...");
+    console.log("☀️ [9 AM MYT] Jpresso Marketing Team is waking up...");
     try {
-        const post = await anthropic.messages.create({
-            model: ACTIVE_MODEL,
-            max_tokens: 300,
-            system: "Write a short, viral Instagram caption for Jpresso Coffee about fresh roasting in KL today. Use Manglish.",
-            messages: [{ role: "user", content: "Create today's post." }]
-        });
-        console.log(`📸 PROPOSED DAILY POST: ${post.content[0].text}`);
+        const drafts = await generateThreeDrafts();
+        await sendDraftsToBoss(drafts);
     } catch (err) {
         console.error("❌ Marketing loop failed:", err);
     }
+}, {
+    timezone: "Asia/Kuala_Lumpur"
 });
 
 // ==========================================
-// 🚀 8. START SERVER
+// 🚀 9. START SERVER
 // ==========================================
 app.listen(PORT, () => {
     console.log(`🟢 Jpresso Bridge Active on port ${PORT}`);
     console.log(`🚀 System Active | Phone: ${PHONE_NUMBER_ID} | Brain: ${ACTIVE_MODEL}`);
+    console.log(`📅 Marketing approval cron: 9 AM Asia/Kuala_Lumpur → Boss +${BOSS_PHONE}`);
 });
