@@ -51,7 +51,7 @@ const JPRESSO_PRODUCTS = `
 - Model: Fresh to Order (48-hour roasting cycle).
 
 === ROASTING SERVICES & B2B ROI ===
-- Wholesale Price: RM 80/kg (Min 10kg).
+- Wholesale Price: Starting from RM 80/kg (Min 10kg).
 - OEM Roasting: RM 15/kg (Min 5kg). Custom specs allowed.
 - Roasting Style: "Thermodynamics Style" (Maximizes origin traits, high sweetness, bright acidity).
 
