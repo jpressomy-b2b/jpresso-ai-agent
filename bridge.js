@@ -30,7 +30,6 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 // ✅ Declared ONCE, at the top. Use the correct model string.
-// Options: "claude-sonnet-4-6" (latest Sonnet 4.6) or "claude-3-5-sonnet-20240620" (older 3.5)
 const ACTIVE_MODEL = "claude-sonnet-4-6";
 
 // Memory Bank for Sophia
@@ -221,7 +220,6 @@ app.get('/webhook', (req, res) => {
             return res.sendStatus(403);
         }
     }
-    // ✅ FIX: always end the response, otherwise the request hangs
     return res.sendStatus(400);
 });
 
@@ -231,8 +229,23 @@ app.get('/webhook', (req, res) => {
 app.post('/webhook', async (req, res) => {
     try {
         const body = req.body;
+        const receivedAt = new Date().toISOString();
 
-        console.log("🚨 INCOMING META DATA:", JSON.stringify(body, null, 2));
+        // 🔇 Silence WhatsApp status callbacks (sent/delivered/read receipts)
+        // These are NOT messages — just delivery confirmations from Meta.
+        if (body.entry?.[0]?.changes?.[0]?.value?.statuses) {
+            console.log(`📬 [${receivedAt}] WA status callback (ignored)`);
+            return res.sendStatus(200);
+        }
+
+        // 🔇 Silence Instagram read receipts / delivery confirmations
+        if (body.entry?.[0]?.messaging?.[0]?.read || body.entry?.[0]?.messaging?.[0]?.delivery) {
+            console.log(`📬 [${receivedAt}] IG status callback (ignored)`);
+            return res.sendStatus(200);
+        }
+
+        // Real message — log it clearly with timestamp
+        console.log(`\n📬 [${receivedAt}] INCOMING MESSAGE:`, JSON.stringify(body, null, 2));
 
         // --- 🟢 CASE A: WHATSAPP MESSAGE ---
         if (body.object === 'whatsapp_business_account') {
@@ -241,7 +254,7 @@ app.post('/webhook', async (req, res) => {
                 const senderNumber = webhook_event.from;
                 const messageText = webhook_event.text?.body || "No text";
 
-                console.log(`\n📥 [WhatsApp] +${senderNumber}: "${messageText}"`);
+                console.log(`📥 [WhatsApp] +${senderNumber}: "${messageText}"`);
 
                 const agentResponse = await routeToAgentTeam(senderNumber, messageText);
 
@@ -270,7 +283,7 @@ app.post('/webhook', async (req, res) => {
                 }
 
                 if (igSenderId) {
-                    console.log(`\n📥 [Instagram] ID ${igSenderId}: "${messageText}"`);
+                    console.log(`📥 [Instagram] ID ${igSenderId}: "${messageText}"`);
 
                     const agentResponse = await routeToAgentTeam(igSenderId, messageText);
 
@@ -396,7 +409,6 @@ async function routeToAgentTeam(senderId, messageText) {
 
         console.log(`🧠 Engine Active: Sending ${formattedMessages.length} strict messages to ${ACTIVE_MODEL}`);
 
-        // ✅ FIXED: proper object syntax, model parameter included, using top-level ACTIVE_MODEL
         const msg = await anthropic.messages.create({
             model: ACTIVE_MODEL,
             max_tokens: 500,
@@ -427,7 +439,6 @@ async function routeToAgentTeam(senderId, messageText) {
 cron.schedule('0 9 * * *', async () => {
     console.log("☀️ Jpresso Marketing Team is waking up...");
     try {
-        // ✅ FIXED: proper object syntax, model parameter included
         const post = await anthropic.messages.create({
             model: ACTIVE_MODEL,
             max_tokens: 300,
@@ -445,6 +456,5 @@ cron.schedule('0 9 * * *', async () => {
 // ==========================================
 app.listen(PORT, () => {
     console.log(`🟢 Jpresso Bridge Active on port ${PORT}`);
-    // ✅ FIXED: model name wrapped as a string in template literal
     console.log(`🚀 System Active | Phone: ${PHONE_NUMBER_ID} | Brain: ${ACTIVE_MODEL}`);
 });
