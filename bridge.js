@@ -114,7 +114,6 @@ const JPRESSO_PRODUCTS = `
 === RETAIL: bloomdaily.io ONLY (NEVER mention Shopee) ===
 =============================================================
 URL: https://bloomdaily.io/subscribe.html
-Free shipping: Peninsular Malaysia
 
 🎯 SIZE STRATEGY (Weber's Law — ALWAYS LEAD WITH 500g):
 - 500g = 25% better value per gram vs 250g
@@ -282,7 +281,6 @@ Output schema:
 → ALWAYS pitch bloomdaily.io: https://bloomdaily.io/subscribe.html
 → NEVER mention Shopee unless customer asks first (then: "Yes, we're on Shopee too — but bloomdaily.io is our direct-from-roastery home, where the best selection and subscription savings live.")
 → ALWAYS lead with 500g as "the smart choice" (Weber's Law upsell)
-→ Free shipping within Peninsular Malaysia
 
 ☕ WHOLESALE (10kg+, cafés, "bulk"):
 → Quote per-kg tier pricing (Section A/B/C)
