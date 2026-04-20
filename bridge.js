@@ -30,6 +30,38 @@ const approvedPosts = [];
 const userSessions = new Map();
 const recentAlerts = new Map();
 
+// ==========================================
+// 💰 COST TRACKING CONFIG (API BUDGET ALERTS)
+// ==========================================
+const COST_CONFIG = {
+    // Pricing per 1M tokens (USD, Claude Sonnet 4.6)
+    INPUT_COST_PER_1M: 3.00,
+    OUTPUT_COST_PER_1M: 15.00,
+    USD_TO_MYR: 4.75, // Update monthly if needed
+    
+    // Alert thresholds (Malaysian Ringgit)
+    DAILY_WARNING: 20.00,    // Warn Boss at RM 20/day
+    DAILY_CRITICAL: 50.00,   // Emergency alert at RM 50/day
+    MONTHLY_BUDGET: 250.00,  // Monthly target ceiling
+};
+
+// In-memory usage counters (reset on server restart)
+const dailyUsage = {
+    date: new Date().toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' }),
+    calls: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    costUSD: 0,
+    costMYR: 0,
+    warningsSent: {}
+};
+
+const monthlyUsage = {
+    month: new Date().toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', month: 'long', year: 'numeric' }),
+    calls: 0,
+    costMYR: 0
+};
+
 // 📸 SUPABASE
 const SUPABASE_BASE = "https://sbzyflkamsifcksqluwc.supabase.co/storage/v1/object/public/jpresso-marketing/jpresso-photos";
 
@@ -114,6 +146,7 @@ const JPRESSO_PRODUCTS = `
 === RETAIL: bloomdaily.io ONLY (NEVER mention Shopee) ===
 =============================================================
 URL: https://bloomdaily.io/subscribe.html
+Free shipping: Peninsular Malaysia
 
 🎯 SIZE STRATEGY (Weber's Law — ALWAYS LEAD WITH 500g):
 - 500g = 25% better value per gram vs 250g
@@ -281,6 +314,7 @@ Output schema:
 → ALWAYS pitch bloomdaily.io: https://bloomdaily.io/subscribe.html
 → NEVER mention Shopee unless customer asks first (then: "Yes, we're on Shopee too — but bloomdaily.io is our direct-from-roastery home, where the best selection and subscription savings live.")
 → ALWAYS lead with 500g as "the smart choice" (Weber's Law upsell)
+→ Free shipping within Peninsular Malaysia
 
 ☕ WHOLESALE (10kg+, cafés, "bulk"):
 → Quote per-kg tier pricing (Section A/B/C)
@@ -387,6 +421,36 @@ app.post('/webhook', async (req, res) => {
                 const messageText = webhook_event.text?.body || "No text";
 
                 console.log(`📥 [WhatsApp] ${senderName} (+${senderNumber}): "${messageText}"`);
+
+                // 💰 Boss commands: USAGE / COST / STATUS — instant cost report
+                if (senderNumber === BOSS_PHONE) {
+                    const upperText = messageText.trim().toUpperCase();
+                    if (upperText === 'USAGE' || upperText === 'COST' || upperText === 'STATUS') {
+                        const statusEmoji = dailyUsage.costMYR < COST_CONFIG.DAILY_WARNING ? '🟢 Healthy' :
+                                            dailyUsage.costMYR < COST_CONFIG.DAILY_CRITICAL ? '🟡 Elevated' : '🔴 Critical';
+                        const report = `📊 INSTANT USAGE CHECK
+
+🕐 ${new Date().toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' })}
+
+━━ TODAY (${dailyUsage.date}) ━━
+💬 Calls: ${dailyUsage.calls}
+📥 In tokens: ${dailyUsage.inputTokens.toLocaleString()}
+📤 Out tokens: ${dailyUsage.outputTokens.toLocaleString()}
+💰 Cost: RM ${dailyUsage.costMYR.toFixed(2)} ($${dailyUsage.costUSD.toFixed(2)})
+📊 Avg: RM ${dailyUsage.calls > 0 ? (dailyUsage.costMYR / dailyUsage.calls).toFixed(3) : '0.000'}/call
+Status: ${statusEmoji}
+
+━━ THIS MONTH ━━
+💬 Calls: ${monthlyUsage.calls}
+💰 Spent: RM ${monthlyUsage.costMYR.toFixed(2)}
+🎯 Budget: RM ${COST_CONFIG.MONTHLY_BUDGET}
+📈 ${((monthlyUsage.costMYR / COST_CONFIG.MONTHLY_BUDGET) * 100).toFixed(1)}% used
+
+(In-memory — resets on server restart. For authoritative data: console.anthropic.com)`;
+                        await sendWhatsAppMessage(BOSS_PHONE, report);
+                        return res.sendStatus(200);
+                    }
+                }
 
                 if (senderNumber === BOSS_PHONE && isMarketingApprovalReply(messageText)) {
                     await handleMarketingApproval(senderNumber, messageText);
@@ -575,6 +639,103 @@ async function syncLeadToSheet(leadData) {
 }
 
 // ==========================================
+// 💰 COST TRACKING FUNCTIONS
+// ==========================================
+function calculateCost(inputTokens, outputTokens) {
+    const inputCost = (inputTokens / 1_000_000) * COST_CONFIG.INPUT_COST_PER_1M;
+    const outputCost = (outputTokens / 1_000_000) * COST_CONFIG.OUTPUT_COST_PER_1M;
+    const totalUSD = inputCost + outputCost;
+    const totalMYR = totalUSD * COST_CONFIG.USD_TO_MYR;
+    return { totalUSD, totalMYR };
+}
+
+async function trackAPIUsage(inputTokens, outputTokens, source = "customer_service") {
+    const today = new Date().toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' });
+    
+    // Reset counter if new day
+    if (dailyUsage.date !== today) {
+        console.log(`📅 New day — previous: RM ${dailyUsage.costMYR.toFixed(2)} / ${dailyUsage.calls} calls`);
+        Object.assign(dailyUsage, {
+            date: today, calls: 0, inputTokens: 0, outputTokens: 0,
+            costUSD: 0, costMYR: 0, warningsSent: {}
+        });
+    }
+    
+    const { totalUSD, totalMYR } = calculateCost(inputTokens, outputTokens);
+    
+    dailyUsage.calls++;
+    dailyUsage.inputTokens += inputTokens;
+    dailyUsage.outputTokens += outputTokens;
+    dailyUsage.costUSD += totalUSD;
+    dailyUsage.costMYR += totalMYR;
+    
+    monthlyUsage.calls++;
+    monthlyUsage.costMYR += totalMYR;
+    
+    console.log(`💰 [${source}] In:${inputTokens} Out:${outputTokens} | RM${totalMYR.toFixed(3)} | Day: RM${dailyUsage.costMYR.toFixed(2)}`);
+    
+    await checkCostThresholds();
+}
+
+async function checkCostThresholds() {
+    // Daily warning at RM 20
+    if (dailyUsage.costMYR >= COST_CONFIG.DAILY_WARNING && !dailyUsage.warningsSent.daily_warning) {
+        dailyUsage.warningsSent.daily_warning = true;
+        const msg = `⚠️ DAILY COST WARNING ⚠️
+
+Boss, Sophia crossed RM ${COST_CONFIG.DAILY_WARNING} today.
+
+Spend: RM ${dailyUsage.costMYR.toFixed(2)}
+Calls: ${dailyUsage.calls}
+Avg/call: RM ${(dailyUsage.costMYR / dailyUsage.calls).toFixed(3)}
+
+Monthly: RM ${monthlyUsage.costMYR.toFixed(2)} / RM ${COST_CONFIG.MONTHLY_BUDGET} budget
+
+Heads-up only. Sophia still operating normally.`;
+        await sendWhatsAppMessage(BOSS_PHONE, msg);
+        console.log(`⚠️ Daily warning fired: RM ${dailyUsage.costMYR.toFixed(2)}`);
+    }
+    
+    // Daily CRITICAL at RM 50
+    if (dailyUsage.costMYR >= COST_CONFIG.DAILY_CRITICAL && !dailyUsage.warningsSent.daily_critical) {
+        dailyUsage.warningsSent.daily_critical = true;
+        const msg = `🚨🚨🚨 CRITICAL COST ALERT 🚨🚨🚨
+
+Boss, Sophia crossed RM ${COST_CONFIG.DAILY_CRITICAL} TODAY.
+
+Spend: RM ${dailyUsage.costMYR.toFixed(2)}
+Calls: ${dailyUsage.calls}
+
+Possible causes:
+• Viral traffic spike
+• Spam/abusive customer
+• Infinite loop bug
+
+IMMEDIATE ACTIONS:
+1. Check Render logs
+2. Review recent conversations
+3. Consider pausing Sophia (Render → Suspend Service)
+
+Anthropic hard cap protects against runaway damage.`;
+        await sendWhatsAppMessage(BOSS_PHONE, msg);
+        console.log(`🚨 CRITICAL threshold fired: RM ${dailyUsage.costMYR.toFixed(2)}`);
+    }
+    
+    // Monthly 80% warning (once per day)
+    const monthlyWarnKey = `monthly_80_${new Date().getDate()}`;
+    if (monthlyUsage.costMYR >= (COST_CONFIG.MONTHLY_BUDGET * 0.8) && !dailyUsage.warningsSent[monthlyWarnKey]) {
+        dailyUsage.warningsSent[monthlyWarnKey] = true;
+        await sendWhatsAppMessage(BOSS_PHONE, `⚠️ MONTHLY BUDGET 80% USED
+
+Sophia used RM ${monthlyUsage.costMYR.toFixed(2)} of RM ${COST_CONFIG.MONTHLY_BUDGET}.
+
+Calls this month: ${monthlyUsage.calls}
+
+Consider reviewing usage.`);
+    }
+}
+
+// ==========================================
 // 🧠 10. SOPHIA BRAIN
 // ==========================================
 async function routeToAgentTeam(senderId, messageText, senderName) {
@@ -615,6 +776,15 @@ async function routeToAgentTeam(senderId, messageText, senderName) {
             system: SOPHIA_SYSTEM_PROMPT + "\n\n=== PRODUCTS ===\n" + JPRESSO_PRODUCTS,
             messages: formattedMessages
         });
+
+        // 💰 Track API cost
+        if (msg.usage) {
+            await trackAPIUsage(
+                msg.usage.input_tokens || 0,
+                msg.usage.output_tokens || 0,
+                "customer_service"
+            );
+        }
 
         const rawText = msg.content[0].text.trim();
 
@@ -684,6 +854,15 @@ CAPTION RULES:
 END WITH: PHOTO_THEMES: [tags: sophia_speaks, sophia_drinks, sophia_brews, sophia_roasts, sophia_lifestyle, product_showcase, bestseller, single_origin, filter_focused, roasting_craft, brewing_craft, lifestyle, founders_story, behind_scenes, KL_pride, authority, bean_showcase, welcome, aspirational]`,
                 messages: [{ role: "user", content: `Write ONE caption. ${angles[i].direction}\n\nPhoto themes: ${angles[i].photo_hint}` }]
             });
+
+            // 💰 Track marketing draft cost
+            if (post.usage) {
+                await trackAPIUsage(
+                    post.usage.input_tokens || 0,
+                    post.usage.output_tokens || 0,
+                    "marketing_draft"
+                );
+            }
 
             const fullText = post.content[0].text.trim();
             const themeMatch = fullText.match(/PHOTO_THEMES:\s*(.+)$/m);
@@ -786,7 +965,7 @@ async function handleMarketingApproval(senderPhone, messageText) {
 }
 
 // ==========================================
-// 📅 12. CRON — 9 AM MYT
+// 📅 12. CRON — 9 AM MYT (Marketing drafts)
 // ==========================================
 cron.schedule('0 9 * * *', async () => {
     console.log("☀️ [9 AM MYT] Marketing Team waking up...");
@@ -799,6 +978,47 @@ cron.schedule('0 9 * * *', async () => {
 }, { timezone: "Asia/Kuala_Lumpur" });
 
 // ==========================================
+// 💰 DAILY COST SUMMARY — 11 PM MYT
+// ==========================================
+cron.schedule('0 23 * * *', async () => {
+    console.log("📊 Sending daily cost summary to Boss...");
+    
+    let statusEmoji = "🟢";
+    let statusText = "Healthy — within normal range";
+    if (dailyUsage.costMYR >= COST_CONFIG.DAILY_WARNING) { statusEmoji = "🟡"; statusText = "Elevated usage — monitoring"; }
+    if (dailyUsage.costMYR >= COST_CONFIG.DAILY_CRITICAL) { statusEmoji = "🔴"; statusText = "High usage — review needed"; }
+    
+    const summary = `📊 SOPHIA DAILY REPORT ${statusEmoji}
+
+📅 ${dailyUsage.date}
+
+━━ TODAY'S USAGE ━━
+💬 Conversations: ${dailyUsage.calls}
+📥 In tokens: ${dailyUsage.inputTokens.toLocaleString()}
+📤 Out tokens: ${dailyUsage.outputTokens.toLocaleString()}
+💰 Cost: RM ${dailyUsage.costMYR.toFixed(2)} ($${dailyUsage.costUSD.toFixed(2)})
+📊 Avg: RM ${dailyUsage.calls > 0 ? (dailyUsage.costMYR / dailyUsage.calls).toFixed(3) : '0.000'}/call
+
+━━ MONTH-TO-DATE ━━
+💬 Total: ${monthlyUsage.calls} conversations
+💰 Spent: RM ${monthlyUsage.costMYR.toFixed(2)}
+🎯 Budget: RM ${COST_CONFIG.MONTHLY_BUDGET}
+📈 ${((monthlyUsage.costMYR / COST_CONFIG.MONTHLY_BUDGET) * 100).toFixed(1)}% of budget used
+
+━━ STATUS ━━
+✅ ${statusText}
+
+Good night, Boss! ☕`;
+    
+    try {
+        await sendWhatsAppMessage(BOSS_PHONE, summary);
+        console.log(`✅ Daily summary sent. RM ${dailyUsage.costMYR.toFixed(2)}`);
+    } catch (err) {
+        console.error("❌ Summary failed:", err);
+    }
+}, { timezone: "Asia/Kuala_Lumpur" });
+
+// ==========================================
 // 🚀 13. START SERVER
 // ==========================================
 app.listen(PORT, () => {
@@ -807,5 +1027,7 @@ app.listen(PORT, () => {
     console.log(`📅 Marketing: 9 AM MYT → Boss +${BOSS_PHONE}`);
     console.log(`📚 Photo Library: ${PHOTO_LIBRARY.length} assets`);
     console.log(`🚨 Alert System: ACTIVE`);
+    console.log(`💰 Cost Tracking: ACTIVE | Daily warn: RM ${COST_CONFIG.DAILY_WARNING} | Critical: RM ${COST_CONFIG.DAILY_CRITICAL} | Monthly budget: RM ${COST_CONFIG.MONTHLY_BUDGET}`);
+    console.log(`📊 Daily report: 11 PM MYT → Boss | Send "USAGE" to Sophia anytime for instant check`);
     console.log(`🛍️  Retail: ${RETAIL_URL} (Weber's Law 500g upsell)`);
 });
