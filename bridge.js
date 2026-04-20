@@ -136,6 +136,7 @@ SINGLE ORIGINS:
 - Guatemala Huehuetenango — RM 44 / RM 86 / RM 130 (Chocolate, nutty, creamy, berries)
 - El Salvador La Fany — RM 45 / RM 88 / RM 138 (Plum, red apple, honey)
 - Ethiopia Lekempti Natural — RM 44 / RM 85 / RM 130 (Berries, grape, dried fruit)
+- Indonesia Mount Kerinchi — RM 66 / RM 99 / RM 123 (Grassy, spicy, nutty, lemon) 
 
 ETHIOPIA YIRGACHEFFE SPECIALS (125g ONLY — premium single origin):
 - Ethiopia Yirgacheffe Aricha — RM 40 / 125g (Rose, juicy, creamy, peach)
