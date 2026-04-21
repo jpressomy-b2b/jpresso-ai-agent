@@ -1051,10 +1051,24 @@ async function fetchAnthropicCost(startDate, endDate) {
     }
     
     try {
-        const startingAt = startDate.toISOString().slice(0, 19) + 'Z';
-        const endingAt = endDate.toISOString().slice(0, 19) + 'Z';
+        // Use full RFC 3339 format with milliseconds stripped
+        // Example: "2026-04-21T00:00:00Z"
+        const startingAt = startDate.toISOString().split('.')[0] + 'Z';
+        const endingAt = endDate.toISOString().split('.')[0] + 'Z';
         
-        const url = `${ANTHROPIC_COST_API}?starting_at=${encodeURIComponent(startingAt)}&ending_at=${encodeURIComponent(endingAt)}`;
+        // Double-check the range is valid before sending
+        if (endDate.getTime() <= startDate.getTime()) {
+            console.error(`❌ Invalid date range: ${startingAt} → ${endingAt} (end must be after start)`);
+            return null;
+        }
+        
+        const params = new URLSearchParams({
+            starting_at: startingAt,
+            ending_at: endingAt,
+            bucket_width: '1d'  // Daily buckets — required for predictable responses
+        });
+        
+        const url = `${ANTHROPIC_COST_API}?${params.toString()}`;
         
         const response = await fetch(url, {
             method: 'GET',
@@ -1066,7 +1080,7 @@ async function fetchAnthropicCost(startDate, endDate) {
         
         if (!response.ok) {
             const errText = await response.text();
-            console.error(`❌ Admin API error ${response.status}: ${errText.slice(0, 200)}`);
+            console.error(`❌ Admin API error ${response.status} (${startingAt} → ${endingAt}): ${errText.slice(0, 200)}`);
             adminCostCache.lastError = `${response.status}: ${errText.slice(0, 100)}`;
             return null;
         }
@@ -1107,18 +1121,36 @@ async function refreshAdminCostData() {
     
     const now = new Date();
     
-    // Today: midnight MYT → now (approximated via UTC offset of -8 hours for MYT)
-    const todayStart = new Date(now);
-    todayStart.setUTCHours(16, 0, 0, 0); // 16:00 UTC = midnight MYT (+8)
-    if (todayStart > now) todayStart.setUTCDate(todayStart.getUTCDate() - 1);
+    // 🕐 Calculate MYT midnight (Asia/Kuala_Lumpur = UTC+8)
+    // Get today's date components IN MYT using Intl
+    const mytFormatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kuala_Lumpur',
+        year: 'numeric', month: '2-digit', day: '2-digit'
+    });
+    const mytDateString = mytFormatter.format(now); // "2026-04-21"
+    const [mytYear, mytMonth, mytDay] = mytDateString.split('-').map(Number);
     
-    // Month-to-date: 1st of month MYT → now
-    const monthStart = new Date(todayStart);
-    monthStart.setUTCDate(1);
+    // Today's midnight MYT in UTC = that date at 00:00 MYT = that date at -8h UTC = previous day 16:00 UTC
+    // Build it safely via UTC construction
+    const todayMidnightMYT_UTC = new Date(Date.UTC(mytYear, mytMonth - 1, mytDay, 0, 0, 0));
+    todayMidnightMYT_UTC.setUTCHours(todayMidnightMYT_UTC.getUTCHours() - 8);
+    
+    // First of month at midnight MYT (in UTC)
+    const monthStartMYT_UTC = new Date(Date.UTC(mytYear, mytMonth - 1, 1, 0, 0, 0));
+    monthStartMYT_UTC.setUTCHours(monthStartMYT_UTC.getUTCHours() - 8);
+    
+    // 🛡️ Guard: ensure ending > starting with at least 5 minute gap
+    // If we're RIGHT at midnight MYT, the range could be 0 — push "now" forward slightly
+    const endTime = new Date(now);
+    if (endTime.getTime() - todayMidnightMYT_UTC.getTime() < 5 * 60 * 1000) {
+        endTime.setTime(todayMidnightMYT_UTC.getTime() + 5 * 60 * 1000);
+    }
+    
+    console.log(`🌐 Admin API range — Today: ${todayMidnightMYT_UTC.toISOString()} → ${endTime.toISOString()}`);
     
     const [todayCost, monthCost] = await Promise.all([
-        fetchAnthropicCost(todayStart, now),
-        fetchAnthropicCost(monthStart, now)
+        fetchAnthropicCost(todayMidnightMYT_UTC, endTime),
+        fetchAnthropicCost(monthStartMYT_UTC, endTime)
     ]);
     
     if (todayCost) {
@@ -1136,34 +1168,45 @@ async function getUnifiedCostData() {
     if (!ANTHROPIC_ADMIN_KEY) return null;
     
     const now = Date.now();
-    const cacheAge = adminCostCache.today ? now - adminCostCache.today.fetchedAt.getTime() : Infinity;
+    const cacheAge = adminCostCache.today ? now - adminCostCache.today.fetchedAt.getTime() :
+                     adminCostCache.monthToDate ? now - adminCostCache.monthToDate.fetchedAt.getTime() :
+                     Infinity;
     
     // Refresh if cache is missing or >10 min old
     if (cacheAge > 10 * 60 * 1000) {
         await refreshAdminCostData();
     }
     
-    if (!adminCostCache.today || !adminCostCache.monthToDate) return null;
+    // Return partial data if only one side succeeded
+    if (!adminCostCache.today && !adminCostCache.monthToDate) return null;
     
-    const totalToday = adminCostCache.today.myr;
-    const totalMonth = adminCostCache.monthToDate.myr;
     const sophiaToday = dailyUsage.costMYR;
     const sophiaMonth = monthlyUsage.costMYR;
     
+    // Today data (fallback: if today missing, assume 0 external so just Sophia)
+    const todayTotal = adminCostCache.today ? adminCostCache.today.myr : sophiaToday;
+    const todayTotalUSD = adminCostCache.today ? adminCostCache.today.usd : dailyUsage.costUSD;
+    
+    // Monthly data (fallback: just Sophia if missing)
+    const monthTotal = adminCostCache.monthToDate ? adminCostCache.monthToDate.myr : sophiaMonth;
+    const monthTotalUSD = adminCostCache.monthToDate ? adminCostCache.monthToDate.usd : sophiaMonth / COST_CONFIG.USD_TO_MYR;
+    
     return {
         today: {
-            total: totalToday,
-            totalUSD: adminCostCache.today.usd,
+            total: todayTotal,
+            totalUSD: todayTotalUSD,
             sophia: sophiaToday,
-            other: Math.max(0, totalToday - sophiaToday)
+            other: Math.max(0, todayTotal - sophiaToday),
+            hasAdminData: !!adminCostCache.today
         },
         month: {
-            total: totalMonth,
-            totalUSD: adminCostCache.monthToDate.usd,
+            total: monthTotal,
+            totalUSD: monthTotalUSD,
             sophia: sophiaMonth,
-            other: Math.max(0, totalMonth - sophiaMonth)
+            other: Math.max(0, monthTotal - sophiaMonth),
+            hasAdminData: !!adminCostCache.monthToDate
         },
-        cachedAt: adminCostCache.today.fetchedAt
+        cachedAt: (adminCostCache.today || adminCostCache.monthToDate).fetchedAt
     };
 }
 
