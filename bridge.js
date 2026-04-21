@@ -64,70 +64,200 @@ const monthlyUsage = {
 
 // 📸 SUPABASE
 const SUPABASE_BASE = "https://sbzyflkamsifcksqluwc.supabase.co/storage/v1/object/public/jpresso-marketing/jpresso-photos";
+const SUPABASE_API = "https://sbzyflkamsifcksqluwc.supabase.co/storage/v1/object/list/jpresso-marketing";
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || ""; // Optional — bucket is public
 
 // 🔗 CHANNELS
 const RETAIL_URL = "https://bloomdaily.io/subscribe.html";
 
 // ==========================================
-// 📷 3. PHOTO LIBRARY
+// 📷 3. PHOTO LIBRARY — AUTO-DISCOVERY SYSTEM
 // ==========================================
-const PHOTO_LIBRARY = [
-    { file: "sophia/sophia_portrait_01.jpg", tags: ["sophia", "portrait", "greeting"], themes: ["sophia_speaks", "welcome"] },
-    { file: "sophia/sophia_portrait_02.jpg", tags: ["sophia", "portrait", "friendly"], themes: ["sophia_speaks", "welcome"] },
-    { file: "sophia/sophia_cafe_01.jpg", tags: ["sophia", "cafe", "drinking"], themes: ["sophia_drinks", "recommendation"] },
-    { file: "sophia/sophia_cafe_02.jpg", tags: ["sophia", "cafe", "drinking"], themes: ["sophia_drinks", "recommendation"] },
-    { file: "sophia/sophia_cafe_03.jpg", tags: ["sophia", "cafe", "atmosphere"], themes: ["sophia_drinks", "lifestyle"] },
-    { file: "sophia/sophia_cafe_05.jpg", tags: ["sophia", "cafe", "atmosphere"], themes: ["sophia_drinks", "lifestyle"] },
-    { file: "sophia/sophia_cafe_06.jpg", tags: ["sophia", "cafe", "atmosphere"], themes: ["sophia_drinks", "lifestyle"] },
-    { file: "sophia/sophia_barista.jpg", tags: ["sophia", "barista", "brewing"], themes: ["sophia_brews", "technique"] },
-    { file: "sophia/sophia_barista_02.jpg", tags: ["sophia", "barista", "brewing"], themes: ["sophia_brews", "technique"] },
-    { file: "sophia/sophia_roaster.jpg", tags: ["sophia", "roaster"], themes: ["sophia_roasts", "craft_story"] },
-    { file: "sophia/sophia_roastery.jpg", tags: ["sophia", "roastery"], themes: ["sophia_roasts", "craft_story"] },
-    { file: "sophia/sophia_street.jpg", tags: ["sophia", "lifestyle", "KL"], themes: ["sophia_lifestyle"] },
-    { file: "sophia/sophia_office.jpg", tags: ["sophia", "office"], themes: ["sophia_works"] },
-    { file: "sophia/sophia_office_01.jpg", tags: ["sophia", "office"], themes: ["sophia_works"] },
-    { file: "sophia/sophia_knitwear.jpg", tags: ["sophia", "casual"], themes: ["sophia_lifestyle"] },
-    { file: "sophia/sophia_swiss.jpg", tags: ["sophia", "travel"], themes: ["coffee_travel"] },
-    { file: "sophia/sophia_santorini.jpg", tags: ["sophia", "travel"], themes: ["coffee_travel"] },
-    { file: "sophia/sophia_jason_seaside.jpg", tags: ["sophia", "jason", "duo"], themes: ["founders_story"] },
-    { file: "sophia-jason/jason_coat.jpg", tags: ["jason", "founder"], themes: ["founders_story", "authority"] },
-    { file: "sophia-jason/sophia_cafe_01.jpg", tags: ["sophia", "cafe"], themes: ["sophia_drinks"] },
-    { file: "sophia-jason/sophia_klcc_01.jpg", tags: ["sophia", "KL", "KLCC"], themes: ["KL_pride"] },
-    { file: "sophia-jason/sophia_klcc_02.jpg", tags: ["sophia", "KL", "KLCC"], themes: ["KL_pride"] },
-    { file: "products/moon_white.jpg", tags: ["moon_white", "product", "dark_roast", "bestseller", "espresso", "latte"], themes: ["product_showcase", "bestseller"] },
-    { file: "products/phoenix_das.jpg", tags: ["phoenix_das", "product", "premium", "caramel"], themes: ["product_showcase", "premium"] },
-    { file: "products/babydas.jpg", tags: ["babydas", "product", "floral"], themes: ["product_showcase"] },
-    { file: "products/sunrise_dreamer.jpg", tags: ["sunrise_dreamer", "product", "hazelnut"], themes: ["product_showcase", "premium"] },
-    { file: "products/sunrise_walker.jpg", tags: ["sunrise_walker", "product", "floral", "berry", "filter"], themes: ["product_showcase", "filter_focused"] },
-    { file: "products/emerald_white.jpg", tags: ["emerald_white", "product", "dark_chocolate"], themes: ["product_showcase", "premium"] },
-    { file: "products/platinum_sunrise.jpg", tags: ["platinum_sunrise", "product", "premium"], themes: ["product_showcase"] },
-    { file: "products/yirgacheffe_aricha.jpg", tags: ["ethiopia", "yirgacheffe", "aricha", "single_origin", "floral"], themes: ["product_showcase", "single_origin"] },
-    { file: "products/yirgacheffe_amederaro.jpg", tags: ["ethiopia", "yirgacheffe", "amederaro", "single_origin", "mango"], themes: ["product_showcase", "single_origin"] },
-    { file: "roasting/has_garanti_01.jpg", tags: ["garanti", "roaster"], themes: ["roasting_craft", "authority"] },
-    { file: "roasting/has_garanti_5kg_01.jpg", tags: ["garanti", "5kg"], themes: ["roasting_craft", "authority"] },
-    { file: "roasting/santoker_air_roaster.jpg", tags: ["santoker", "air_roaster"], themes: ["roasting_craft", "authority"] },
-    { file: "roasting/roasted_bean.jpg", tags: ["beans", "roasted"], themes: ["roasting_craft", "bean_showcase"] },
-    { file: "roasting/roastery_02.jpg", tags: ["roastery"], themes: ["behind_scenes", "authority"] },
-    { file: "roasting/roastery_facility.jpg", tags: ["roastery"], themes: ["behind_scenes", "authority"] },
-    { file: "roasting/meraki_coffee_machine_01.jpg", tags: ["meraki", "espresso_machine"], themes: ["equipment_sales"] },
-    { file: "roasting/meraki_coffee_machine_02.jpg", tags: ["meraki", "espresso_machine"], themes: ["equipment_sales"] },
-    { file: "brewing/latteart (1).jpg", tags: ["latte_art", "latte", "milk"], themes: ["brewing_craft", "aspirational"] },
-    { file: "brewing/latteart (2).jpg", tags: ["latte_art", "latte", "milk"], themes: ["brewing_craft", "aspirational"] },
-    { file: "brewing/latteart (3).jpg", tags: ["latte_art", "latte", "milk"], themes: ["brewing_craft", "aspirational"] },
-    { file: "brewing/latteart (4).jpg", tags: ["latte_art", "latte", "milk"], themes: ["brewing_craft", "aspirational"] },
-    { file: "brewing/pourover.jpg", tags: ["pourover", "v60", "filter"], themes: ["brewing_craft", "filter_focused"] },
-    { file: "cafe/coffee_station.jpg", tags: ["cafe", "station"], themes: ["cafe_atmosphere"] },
-    { file: "cafe/coffee_station_01.jpg", tags: ["cafe", "station"], themes: ["cafe_atmosphere"] },
-    { file: "lifestyle/cafe_visiting.jpg", tags: ["lifestyle", "cafe"], themes: ["lifestyle", "customer_story"] },
-    { file: "lifestyle/coffee_ordering.jpg", tags: ["lifestyle", "ordering"], themes: ["lifestyle", "customer_story"] },
-    { file: "lifestyle/drink_coffee.jpg", tags: ["lifestyle", "drinking"], themes: ["lifestyle", "customer_story"] },
+// Dynamically scans Supabase bucket on startup + every 6 hours.
+// Auto-tags photos based on folder + filename keywords.
+// Zero maintenance — upload new photos to Supabase, Sophia finds them.
+
+let PHOTO_LIBRARY = [];
+
+// Folders to scan in jpresso-photos/
+const PHOTO_FOLDERS = [
+    "sophia",
+    "sophia-jason",
+    "products",
+    "roasting",
+    "brewing",
+    "cafe",
+    "lifestyle"
 ];
 
-PHOTO_LIBRARY.forEach(p => {
-    p.url = `${SUPABASE_BASE}/${encodeURI(p.file)}`;
+// Image extensions we care about (skip .mp4 and other non-images)
+const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp'];
+
+// 🏷️ Smart auto-tagging based on folder + filename keywords
+function autoTagPhoto(folder, filename) {
+    const lowerName = filename.toLowerCase().replace(/[-_.]/g, ' ');
+    const tags = new Set();
+    const themes = new Set();
+
+    // Folder-based default tags/themes
+    const folderDefaults = {
+        "sophia": { tags: ["sophia"], themes: ["sophia_speaks"] },
+        "sophia-jason": { tags: ["sophia", "jason", "duo"], themes: ["founders_story"] },
+        "products": { tags: ["product"], themes: ["product_showcase"] },
+        "roasting": { tags: ["roastery"], themes: ["roasting_craft", "authority"] },
+        "brewing": { tags: ["brewing"], themes: ["brewing_craft"] },
+        "cafe": { tags: ["cafe"], themes: ["cafe_atmosphere"] },
+        "lifestyle": { tags: ["lifestyle"], themes: ["lifestyle", "customer_story"] }
+    };
+
+    const defaults = folderDefaults[folder] || { tags: [], themes: [] };
+    defaults.tags.forEach(t => tags.add(t));
+    defaults.themes.forEach(t => themes.add(t));
+
+    // Keyword-based tagging from filename
+    const keywordMap = {
+        "portrait": { tags: ["portrait", "greeting"], themes: ["welcome"] },
+        "cafe": { tags: ["cafe", "drinking"], themes: ["sophia_drinks", "recommendation"] },
+        "barista": { tags: ["barista", "brewing"], themes: ["sophia_brews", "technique"] },
+        "roaster": { tags: ["roaster"], themes: ["sophia_roasts", "craft_story"] },
+        "roastery": { tags: ["roastery"], themes: ["sophia_roasts", "craft_story", "behind_scenes"] },
+        "street": { tags: ["lifestyle", "KL"], themes: ["sophia_lifestyle"] },
+        "office": { tags: ["office"], themes: ["sophia_works"] },
+        "knitwear": { tags: ["casual"], themes: ["sophia_lifestyle"] },
+        "swiss": { tags: ["travel"], themes: ["coffee_travel"] },
+        "santorini": { tags: ["travel"], themes: ["coffee_travel"] },
+        "seaside": { tags: ["duo"], themes: ["founders_story"] },
+        "jason": { tags: ["jason", "founder"], themes: ["founders_story", "authority"] },
+        "klcc": { tags: ["KL", "KLCC"], themes: ["KL_pride"] },
+        "coat": { tags: ["founder"], themes: ["founders_story", "authority"] },
+        "moon": { tags: ["moon_white", "bestseller", "espresso", "latte", "dark_roast"], themes: ["bestseller"] },
+        "phoenix": { tags: ["phoenix_das", "premium", "caramel"], themes: ["premium"] },
+        "babydas": { tags: ["babydas", "floral"], themes: ["product_showcase"] },
+        "sunrise_dreamer": { tags: ["sunrise_dreamer", "hazelnut"], themes: ["premium"] },
+        "sunrise_walker": { tags: ["sunrise_walker", "floral", "berry", "filter"], themes: ["filter_focused"] },
+        "emerald": { tags: ["emerald_white", "dark_chocolate"], themes: ["premium"] },
+        "platinum": { tags: ["platinum_sunrise", "premium"], themes: ["premium"] },
+        "cham": { tags: ["cham_velvet", "cocoa"], themes: ["premium"] },
+        "yirgacheffe": { tags: ["ethiopia", "yirgacheffe", "single_origin", "floral"], themes: ["single_origin"] },
+        "aricha": { tags: ["aricha", "bergamot"], themes: [] },
+        "amederaro": { tags: ["amederaro", "jasmine"], themes: [] },
+        "brazil": { tags: ["brazil", "nutty", "chocolate"], themes: ["single_origin"] },
+        "mandheling": { tags: ["mandheling", "indonesia", "earthy"], themes: ["single_origin"] },
+        "colombia": { tags: ["colombia", "balanced"], themes: ["single_origin"] },
+        "guatemala": { tags: ["guatemala", "spice"], themes: ["single_origin"] },
+        "kerinci": { tags: ["kerinci", "sumatra", "indonesia"], themes: ["single_origin"] },
+        "lekempti": { tags: ["ethiopia", "lekempti", "berry"], themes: ["single_origin"] },
+        "salvador": { tags: ["el_salvador", "la_fany", "honey"], themes: ["single_origin"] },
+        "la_fan": { tags: ["la_fany"], themes: ["single_origin"] },
+        "coffee_bag": { tags: ["bag", "product"], themes: ["product_showcase"] },
+        "garanti": { tags: ["garanti", "roaster"], themes: ["roasting_craft", "authority"] },
+        "santoker": { tags: ["santoker", "air_roaster"], themes: ["roasting_craft", "authority"] },
+        "meraki": { tags: ["meraki", "espresso_machine"], themes: ["equipment_sales"] },
+        "roasted_bean": { tags: ["beans", "roasted"], themes: ["bean_showcase"] },
+        "latteart": { tags: ["latte_art", "latte", "milk"], themes: ["brewing_craft", "aspirational"] },
+        "latte": { tags: ["latte", "milk"], themes: ["brewing_craft"] },
+        "pourover": { tags: ["pourover", "v60", "filter"], themes: ["filter_focused"] },
+        "station": { tags: ["station"], themes: ["cafe_atmosphere"] },
+        "visiting": { tags: ["visiting"], themes: ["customer_story"] },
+        "ordering": { tags: ["ordering"], themes: ["customer_story"] },
+        "drink": { tags: ["drinking"], themes: ["customer_story"] }
+    };
+
+    for (const [keyword, data] of Object.entries(keywordMap)) {
+        if (lowerName.includes(keyword)) {
+            data.tags.forEach(t => tags.add(t));
+            data.themes.forEach(t => themes.add(t));
+        }
+    }
+
+    return {
+        tags: Array.from(tags),
+        themes: Array.from(themes)
+    };
+}
+
+// 🔍 Scan a single Supabase folder — returns list of image files
+async function scanSupabaseFolder(folder) {
+    try {
+        const response = await fetch(SUPABASE_API, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            },
+            body: JSON.stringify({
+                prefix: `jpresso-photos/${folder}`,
+                limit: 100,
+                offset: 0,
+                sortBy: { column: "name", order: "asc" }
+            })
+        });
+
+        if (!response.ok) {
+            console.error(`❌ Supabase scan failed for /${folder}: ${response.status} ${response.statusText}`);
+            return [];
+        }
+
+        const files = await response.json();
+        if (!Array.isArray(files)) {
+            console.error(`❌ Unexpected response format for /${folder}`);
+            return [];
+        }
+
+        // Filter for images only (skip videos, drafts, etc.)
+        return files
+            .filter(f => f.name && IMAGE_EXTS.some(ext => f.name.toLowerCase().endsWith(ext)))
+            .map(f => f.name);
+
+    } catch (err) {
+        console.error(`❌ Error scanning /${folder}:`, err.message);
+        return [];
+    }
+}
+
+// 🔄 Main auto-discovery function
+async function refreshPhotoLibrary() {
+    console.log("🔍 Scanning Supabase for photos...");
+    const newLibrary = [];
+    let skippedCount = 0;
+
+    for (const folder of PHOTO_FOLDERS) {
+        const files = await scanSupabaseFolder(folder);
+        console.log(`  /${folder}: ${files.length} images found`);
+
+        for (const filename of files) {
+            const filepath = `${folder}/${filename}`;
+            const { tags, themes } = autoTagPhoto(folder, filename);
+
+            newLibrary.push({
+                file: filepath,
+                tags,
+                themes,
+                url: `${SUPABASE_BASE}/${encodeURI(filepath)}`
+            });
+        }
+    }
+
+    if (newLibrary.length > 0) {
+        PHOTO_LIBRARY = newLibrary;
+        console.log(`✅ Photo Library refreshed: ${PHOTO_LIBRARY.length} assets indexed`);
+    } else {
+        console.error("⚠️ No photos found during scan — keeping existing library");
+    }
+
+    return PHOTO_LIBRARY.length;
+}
+
+// Manually populate library on server start (non-blocking)
+refreshPhotoLibrary().catch(err => {
+    console.error("❌ Initial photo scan failed:", err.message);
 });
 
-console.log(`📚 Photo Library: ${PHOTO_LIBRARY.length} assets.`);
+// Auto-refresh every 6 hours
+setInterval(() => {
+    refreshPhotoLibrary().catch(err => console.error("❌ Photo refresh failed:", err.message));
+}, 6 * 60 * 60 * 1000);
 
 // ==========================================
 // 🧠 4. JPRESSO KNOWLEDGE BASE (BLOOMDAILY-FOCUSED)
@@ -157,7 +287,7 @@ Free shipping: Peninsular Malaysia
 
 MOON WHITE (BESTSELLER for lattes, everyday tier)
 - 250g: RM 40  |  500g: RM 60  (500g saves RM 20 = 25% better value)
-- Notes: Milk chocolate, caramel, clean finish
+- Notes: Dark chocolate, caramel, hazelnut finish
 - Roast: Medium Dark
 - Best for: Espresso, milk drinks, daily driver
 
@@ -179,7 +309,7 @@ EMERALD WHITE (specialty)
 
 BABYDAS BLEND (everyday comfort)
 - 250g: RM 38  |  500g: RM 57  (500g saves RM 19)
-- Notes: Balanced, sweet, smooth, everyday comfort
+- Notes: Floral, fruity, sweet chocolate, everyday comfort
 - Best for: Versatile — espresso, drip, pour-over
 
 SUNRISE WALKER (specialty — fruity morning brew)
@@ -189,8 +319,8 @@ SUNRISE WALKER (specialty — fruity morning brew)
 
 SUNRISE DREAMER (everyday espresso)
 - 250g: RM 40  |  500g: RM 60  (500g saves RM 20)
-- Notes: Rich, bold, cocoa, toasted almond
-- Best for: Espresso 18g:38g
+- Notes: Caramel, chocolaty, toasted hazelnut
+- Best for: Espresso 18g:36g
 
 === SINGLE ORIGINS — EVERYDAY TIER ===
 
@@ -210,37 +340,37 @@ MANDHELING G1 (Indonesia — DARK available)
 
 COLOMBIA SUPREMO (LIGHT / MEDIUM / DARK available)
 - 250g: RM 38  |  500g: RM 57
-- Notes: Balanced, caramel, milk chocolate
+- Notes: Molasses, chocolate, malt, grapes, orange zest
 - Best for: Pour-over or AeroPress
 
 GUATEMALA ANTIGUA (LIGHT / MEDIUM available)
 - 250g: RM 40  |  500g: RM 60
-- Notes: Cocoa, orange peel, spice, balanced
+- Notes: Chocolate, caramel, sweetness, citrusy
 
 === SINGLE ORIGINS — SPECIALTY TIER ===
 
 GUATEMALA HUEHUETENANGO
 - 250g: RM 42  |  500g: RM 63
-- Notes: Wine-like, stone fruit, chocolate, complex
+- Notes: Chocolate, nutty, creamy, berries
 
 ETHIOPIA LEKEMPTI (Natural)
 - 250g: RM 44  |  500g: RM 66
-- Notes: Fruity, winey, blueberry, wild berry
+- Notes: Berries, grape, dried fruit
 - Best for: AeroPress or V60
 
 ETHIOPIA YIRGACHEFFE ARICHA WEBANCHI (Filter roast)
 - 250g: RM 71  |  500g: RM 107
-- Notes: Floral, bright citrus, bergamot, tea-like
+- Notes: Rose, juicy, creamy, water apple, peach
 - Best for: V60 @ 91°C, 1:16
 
 ETHIOPIA YIRGACHEFFE AMEDERARO (Filter roast)
 - 250g: RM 71  |  500g: RM 107
-- Notes: Jasmine, lemon zest, peach, silky
+- Notes: Mango, orange, white floral
 - Best for: Pour-over @ 90°C
 
 EL SALVADOR LA FANY (Medium — FILTER roast available)
 - 250g: RM 57  |  500g: RM 86
-- Notes: Sweet, honey, stone fruit, balanced acidity
+- Notes: Plum, red apple, honey
 
 INDONESIA SUMATRA MOUNT KERINCI (4 processes available: Full Washed / Honey / Natural / Semi Washed — all in MEDIUM or DARK)
 - 250g: RM 66  |  500g: RM 99
@@ -425,6 +555,18 @@ app.post('/webhook', async (req, res) => {
                 // 💰 Boss commands: USAGE / COST / STATUS — instant cost report
                 if (senderNumber === BOSS_PHONE) {
                     const upperText = messageText.trim().toUpperCase();
+                    
+                    // 🔄 RESCAN: Force photo library refresh
+                    if (upperText === 'RESCAN' || upperText === 'REFRESH PHOTOS') {
+                        await sendWhatsAppMessage(BOSS_PHONE, "🔍 Scanning Supabase for photos... (check logs for details)");
+                        const count = await refreshPhotoLibrary();
+                        await sendWhatsAppMessage(BOSS_PHONE, `✅ Photo library refreshed.\n\n📸 Total images indexed: ${count}\n\nBreakdown:\n${PHOTO_FOLDERS.map(f => {
+                            const n = PHOTO_LIBRARY.filter(p => p.file.startsWith(f + '/')).length;
+                            return `  /${f}: ${n}`;
+                        }).join('\n')}`);
+                        return res.sendStatus(200);
+                    }
+                    
                     if (upperText === 'USAGE' || upperText === 'COST' || upperText === 'STATUS') {
                         const statusEmoji = dailyUsage.costMYR < COST_CONFIG.DAILY_WARNING ? '🟢 Healthy' :
                                             dailyUsage.costMYR < COST_CONFIG.DAILY_CRITICAL ? '🟡 Elevated' : '🔴 Critical';
@@ -1025,7 +1167,7 @@ app.listen(PORT, () => {
     console.log(`🟢 Jpresso Bridge Active on port ${PORT}`);
     console.log(`🚀 Phone: ${PHONE_NUMBER_ID} | Brain: ${ACTIVE_MODEL}`);
     console.log(`📅 Marketing: 9 AM MYT → Boss +${BOSS_PHONE}`);
-    console.log(`📚 Photo Library: ${PHOTO_LIBRARY.length} assets`);
+    console.log(`📚 Photo Library: Auto-discovery active (scans Supabase on startup + every 6hrs)`);
     console.log(`🚨 Alert System: ACTIVE`);
     console.log(`💰 Cost Tracking: ACTIVE | Daily warn: RM ${COST_CONFIG.DAILY_WARNING} | Critical: RM ${COST_CONFIG.DAILY_CRITICAL} | Monthly budget: RM ${COST_CONFIG.MONTHLY_BUDGET}`);
     console.log(`📊 Daily report: 11 PM MYT → Boss | Send "USAGE" to Sophia anytime for instant check`);
