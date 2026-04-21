@@ -19,6 +19,7 @@ const PHONE_NUMBER_ID = "1124375407418121";
 const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "JpressoSophia2026";
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const ANTHROPIC_ADMIN_KEY = process.env.ANTHROPIC_ADMIN_KEY || ""; // 🆕 sk-ant-admin... for org-wide usage tracking
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 const ACTIVE_MODEL = "claude-sonnet-4-6";
@@ -43,6 +44,10 @@ const COST_CONFIG = {
     DAILY_WARNING: 20.00,    // Warn Boss at RM 20/day
     DAILY_CRITICAL: 50.00,   // Emergency alert at RM 50/day
     MONTHLY_BUDGET: 250.00,  // Monthly target ceiling
+    
+    // 🛑 HARD LIMITS — Sophia STOPS replying when exceeded (protects from runaway cost)
+    DAILY_HARD_CAP: 80.00,    // RM 80/day absolute max for Sophia
+    MONTHLY_HARD_CAP: 400.00, // RM 400/month absolute max for Sophia
 };
 
 // In-memory usage counters (reset on server restart)
@@ -53,7 +58,9 @@ const dailyUsage = {
     outputTokens: 0,
     costUSD: 0,
     costMYR: 0,
-    warningsSent: {}
+    warningsSent: {},
+    capOverride: false,  // 🛑 Boss can override cap via "RESET COST" command
+    blockedCalls: 0       // Count of calls blocked by cap today
 };
 
 const monthlyUsage = {
@@ -287,7 +294,7 @@ Free shipping: Peninsular Malaysia
 
 MOON WHITE (BESTSELLER for lattes, everyday tier)
 - 250g: RM 40  |  500g: RM 60  (500g saves RM 20 = 25% better value)
-- Notes: Dark chocolate, caramel, hazelnut finish
+- Notes: Milk chocolate, caramel, clean finish
 - Roast: Medium Dark
 - Best for: Espresso, milk drinks, daily driver
 
@@ -309,7 +316,7 @@ EMERALD WHITE (specialty)
 
 BABYDAS BLEND (everyday comfort)
 - 250g: RM 38  |  500g: RM 57  (500g saves RM 19)
-- Notes: Floral, fruity, sweet chocolate, everyday comfort
+- Notes: Balanced, sweet, smooth, everyday comfort
 - Best for: Versatile — espresso, drip, pour-over
 
 SUNRISE WALKER (specialty — fruity morning brew)
@@ -319,8 +326,8 @@ SUNRISE WALKER (specialty — fruity morning brew)
 
 SUNRISE DREAMER (everyday espresso)
 - 250g: RM 40  |  500g: RM 60  (500g saves RM 20)
-- Notes: Caramel, chocolaty, toasted hazelnut
-- Best for: Espresso 18g:36g
+- Notes: Rich, bold, cocoa, toasted almond
+- Best for: Espresso 18g:38g
 
 === SINGLE ORIGINS — EVERYDAY TIER ===
 
@@ -340,37 +347,37 @@ MANDHELING G1 (Indonesia — DARK available)
 
 COLOMBIA SUPREMO (LIGHT / MEDIUM / DARK available)
 - 250g: RM 38  |  500g: RM 57
-- Notes: Molasses, chocolate, malt, grapes, orange zest
+- Notes: Balanced, caramel, milk chocolate
 - Best for: Pour-over or AeroPress
 
 GUATEMALA ANTIGUA (LIGHT / MEDIUM available)
 - 250g: RM 40  |  500g: RM 60
-- Notes: Chocolate, caramel, sweetness, citrusy
+- Notes: Cocoa, orange peel, spice, balanced
 
 === SINGLE ORIGINS — SPECIALTY TIER ===
 
 GUATEMALA HUEHUETENANGO
 - 250g: RM 42  |  500g: RM 63
-- Notes: Chocolate, nutty, creamy, berries
+- Notes: Wine-like, stone fruit, chocolate, complex
 
 ETHIOPIA LEKEMPTI (Natural)
 - 250g: RM 44  |  500g: RM 66
-- Notes: Berries, grape, dried fruit
+- Notes: Fruity, winey, blueberry, wild berry
 - Best for: AeroPress or V60
 
 ETHIOPIA YIRGACHEFFE ARICHA WEBANCHI (Filter roast)
 - 250g: RM 71  |  500g: RM 107
-- Notes: Rose, juicy, creamy, water apple, peach
+- Notes: Floral, bright citrus, bergamot, tea-like
 - Best for: V60 @ 91°C, 1:16
 
 ETHIOPIA YIRGACHEFFE AMEDERARO (Filter roast)
 - 250g: RM 71  |  500g: RM 107
-- Notes: Mango, orange, white floral
+- Notes: Jasmine, lemon zest, peach, silky
 - Best for: Pour-over @ 90°C
 
 EL SALVADOR LA FANY (Medium — FILTER roast available)
 - 250g: RM 57  |  500g: RM 86
-- Notes: Plum, red apple, honey
+- Notes: Sweet, honey, stone fruit, balanced acidity
 
 INDONESIA SUMATRA MOUNT KERINCI (4 processes available: Full Washed / Honey / Natural / Semi Washed — all in MEDIUM or DARK)
 - 250g: RM 66  |  500g: RM 99
@@ -567,14 +574,71 @@ app.post('/webhook', async (req, res) => {
                         return res.sendStatus(200);
                     }
                     
+                    // 🛑 RESET COST: Override hard cap — resume Sophia after investigation
+                    if (upperText === 'RESET COST' || upperText === 'RESUME SOPHIA' || upperText === 'OVERRIDE CAP') {
+                        dailyUsage.capOverride = true;
+                        // Clear the alert flags so warnings can fire again if needed
+                        delete dailyUsage.warningsSent.cap_daily_triggered;
+                        delete dailyUsage.warningsSent.cap_monthly_triggered;
+                        
+                        await sendWhatsAppMessage(BOSS_PHONE, `✅ HARD CAP OVERRIDE ACTIVE
+
+Sophia is resuming normal operation.
+
+⚠️ Current state:
+• Today: RM ${dailyUsage.costMYR.toFixed(2)} (cap was RM ${COST_CONFIG.DAILY_HARD_CAP})
+• Month: RM ${monthlyUsage.costMYR.toFixed(2)} (cap was RM ${COST_CONFIG.MONTHLY_HARD_CAP})
+• Blocked calls today: ${dailyUsage.blockedCalls}
+
+Override resets at midnight MYT (or next server restart).
+
+Monitor carefully. Text "USAGE" anytime for status.`);
+                        console.log(`⚠️ Boss overrode hard cap — Sophia resumed`);
+                        return res.sendStatus(200);
+                    }
+                    
                     if (upperText === 'USAGE' || upperText === 'COST' || upperText === 'STATUS') {
                         const statusEmoji = dailyUsage.costMYR < COST_CONFIG.DAILY_WARNING ? '🟢 Healthy' :
                                             dailyUsage.costMYR < COST_CONFIG.DAILY_CRITICAL ? '🟡 Elevated' : '🔴 Critical';
+                        
+                        // Hard cap status line
+                        const capStatus = dailyUsage.capOverride ? '⚠️ OVERRIDE ACTIVE' :
+                                         dailyUsage.costMYR >= COST_CONFIG.DAILY_HARD_CAP ? '🛑 DAILY CAP HIT' :
+                                         monthlyUsage.costMYR >= COST_CONFIG.MONTHLY_HARD_CAP ? '🛑 MONTHLY CAP HIT' :
+                                         '✅ Within caps';
+                        
+                        const dailyCapPct = ((dailyUsage.costMYR / COST_CONFIG.DAILY_HARD_CAP) * 100).toFixed(0);
+                        const monthlyCapPct = ((monthlyUsage.costMYR / COST_CONFIG.MONTHLY_HARD_CAP) * 100).toFixed(0);
+                        
+                        // 🌐 Fetch unified tracking (if configured)
+                        const unified = await getUnifiedCostData();
+                        
+                        let unifiedSection = "";
+                        if (unified) {
+                            const otherPct = unified.today.total > 0 ? ((unified.today.other / unified.today.total) * 100).toFixed(0) : 0;
+                            unifiedSection = `
+
+━━ 🌐 ALL ANTHROPIC APPS ━━
+💰 Total today: RM ${unified.today.total.toFixed(2)} ($${unified.today.totalUSD.toFixed(2)})
+💰 Total this month: RM ${unified.month.total.toFixed(2)} ($${unified.month.totalUSD.toFixed(2)})
+
+━━ BREAKDOWN (TODAY) ━━
+• Sophia WhatsApp: RM ${unified.today.sophia.toFixed(2)}
+• Other apps: RM ${unified.today.other.toFixed(2)} (${otherPct}%)
+  (Enterprise OS, Claude Code, etc.)
+
+(Admin data cached ${Math.round((Date.now() - unified.cachedAt.getTime()) / 60000)} min ago)`;
+                        } else if (ANTHROPIC_ADMIN_KEY) {
+                            unifiedSection = `\n\n⚠️ Admin API unreachable: ${adminCostCache.lastError || 'unknown'}`;
+                        } else {
+                            unifiedSection = `\n\n💡 Set ANTHROPIC_ADMIN_KEY env var for total-spend tracking across all apps`;
+                        }
+                        
                         const report = `📊 INSTANT USAGE CHECK
 
 🕐 ${new Date().toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' })}
 
-━━ TODAY (${dailyUsage.date}) ━━
+━━ SOPHIA WHATSAPP (TODAY) ━━
 💬 Calls: ${dailyUsage.calls}
 📥 In tokens: ${dailyUsage.inputTokens.toLocaleString()}
 📤 Out tokens: ${dailyUsage.outputTokens.toLocaleString()}
@@ -582,14 +646,35 @@ app.post('/webhook', async (req, res) => {
 📊 Avg: RM ${dailyUsage.calls > 0 ? (dailyUsage.costMYR / dailyUsage.calls).toFixed(3) : '0.000'}/call
 Status: ${statusEmoji}
 
-━━ THIS MONTH ━━
+━━ SOPHIA WHATSAPP (MONTH) ━━
 💬 Calls: ${monthlyUsage.calls}
 💰 Spent: RM ${monthlyUsage.costMYR.toFixed(2)}
-🎯 Budget: RM ${COST_CONFIG.MONTHLY_BUDGET}
-📈 ${((monthlyUsage.costMYR / COST_CONFIG.MONTHLY_BUDGET) * 100).toFixed(1)}% used
+📈 ${((monthlyUsage.costMYR / COST_CONFIG.MONTHLY_BUDGET) * 100).toFixed(1)}% of RM ${COST_CONFIG.MONTHLY_BUDGET} budget${unifiedSection}
 
-(In-memory — resets on server restart. For authoritative data: console.anthropic.com)`;
+━━ 🛑 HARD CAPS ━━
+${capStatus}
+Daily: RM ${dailyUsage.costMYR.toFixed(2)} / RM ${COST_CONFIG.DAILY_HARD_CAP} (${dailyCapPct}%)
+Monthly: RM ${monthlyUsage.costMYR.toFixed(2)} / RM ${COST_CONFIG.MONTHLY_HARD_CAP} (${monthlyCapPct}%)
+Blocked calls today: ${dailyUsage.blockedCalls}
+
+💡 COMMANDS:
+• RESET COST → override cap and resume
+• RESCAN → refresh photo library
+• REFRESH COST → force refresh admin API`;
                         await sendWhatsAppMessage(BOSS_PHONE, report);
+                        return res.sendStatus(200);
+                    }
+                    
+                    // 🔄 REFRESH COST: Force immediate admin API fetch
+                    if (upperText === 'REFRESH COST' || upperText === 'REFRESH ADMIN') {
+                        await sendWhatsAppMessage(BOSS_PHONE, "🌐 Fetching latest data from Anthropic Admin API...");
+                        await refreshAdminCostData();
+                        const unified = await getUnifiedCostData();
+                        if (unified) {
+                            await sendWhatsAppMessage(BOSS_PHONE, `✅ Admin data refreshed.\n\nToday total: RM ${unified.today.total.toFixed(2)}\nMonth total: RM ${unified.month.total.toFixed(2)}\n\nText USAGE for full report.`);
+                        } else {
+                            await sendWhatsAppMessage(BOSS_PHONE, `❌ Admin API unreachable.\n\nError: ${adminCostCache.lastError || 'unknown'}\n\nCheck ANTHROPIC_ADMIN_KEY env var in Render.`);
+                        }
                         return res.sendStatus(200);
                     }
                 }
@@ -799,7 +884,8 @@ async function trackAPIUsage(inputTokens, outputTokens, source = "customer_servi
         console.log(`📅 New day — previous: RM ${dailyUsage.costMYR.toFixed(2)} / ${dailyUsage.calls} calls`);
         Object.assign(dailyUsage, {
             date: today, calls: 0, inputTokens: 0, outputTokens: 0,
-            costUSD: 0, costMYR: 0, warningsSent: {}
+            costUSD: 0, costMYR: 0, warningsSent: {},
+            capOverride: false, blockedCalls: 0
         });
     }
     
@@ -878,10 +964,237 @@ Consider reviewing usage.`);
 }
 
 // ==========================================
+// 🛑 HARD CAP ENFORCEMENT — STOPS SOPHIA FROM REPLYING
+// ==========================================
+// Called BEFORE every Anthropic API call. Returns true if Sophia should stop.
+function isCostCapExceeded() {
+    // Boss can override via "RESET COST" command
+    if (dailyUsage.capOverride) {
+        return false;
+    }
+    
+    // Check daily cap
+    if (dailyUsage.costMYR >= COST_CONFIG.DAILY_HARD_CAP) {
+        return { reason: 'daily', current: dailyUsage.costMYR, cap: COST_CONFIG.DAILY_HARD_CAP };
+    }
+    
+    // Check monthly cap
+    if (monthlyUsage.costMYR >= COST_CONFIG.MONTHLY_HARD_CAP) {
+        return { reason: 'monthly', current: monthlyUsage.costMYR, cap: COST_CONFIG.MONTHLY_HARD_CAP };
+    }
+    
+    return false;
+}
+
+// Send ONE alert to Boss when the cap first triggers
+async function notifyCapTriggered(cap) {
+    const alertKey = `cap_${cap.reason}_triggered`;
+    if (dailyUsage.warningsSent[alertKey]) return; // Already alerted today
+    
+    dailyUsage.warningsSent[alertKey] = true;
+    
+    const msg = `🛑🛑🛑 SOPHIA STOPPED 🛑🛑🛑
+
+${cap.reason.toUpperCase()} HARD CAP HIT
+
+Current: RM ${cap.current.toFixed(2)}
+Cap: RM ${cap.cap.toFixed(2)}
+
+Sophia has STOPPED replying to customers.
+Customers receive a polite "we'll reply soon" message.
+
+POSSIBLE CAUSES:
+• Viral traffic spike
+• Spam/abusive customer
+• Runaway loop bug
+
+TO RESUME SOPHIA:
+1. Investigate Render logs + recent chats
+2. Fix the root cause if needed
+3. Text "RESET COST" to Sophia to override
+
+⚠️ This protects your API wallet from runaway damage.`;
+    
+    await sendWhatsAppMessage(BOSS_PHONE, msg);
+    console.log(`🛑 HARD CAP TRIGGERED: ${cap.reason} — Sophia stopped`);
+}
+
+// ==========================================
+// 🌐 UNIFIED ANTHROPIC TRACKING (Admin API)
+// ==========================================
+// Queries Anthropic's Admin API to get TOTAL spending across ALL apps
+// using your API key (Sophia WhatsApp + Enterprise OS + Claude Code + etc.)
+//
+// REQUIREMENTS:
+// 1. Admin API key set as env var ANTHROPIC_ADMIN_KEY (starts with sk-ant-admin...)
+// 2. Generate at: console.anthropic.com → Settings → Admin Keys
+// 3. If not set, this module silently skips — regular Sophia tracking still works
+//
+// DATA NOTES:
+// - Anthropic returns cost in USD cents (e.g. "123.45" = $1.23)
+// - Data usually appears within 5 minutes of API call completion
+// - We convert USD → MYR at the current exchange rate
+
+const ANTHROPIC_COST_API = "https://api.anthropic.com/v1/organizations/cost_report";
+
+// Cache admin data (don't spam the API on every USAGE check)
+let adminCostCache = {
+    today: null,        // { usd: 0, myr: 0, fetchedAt: Date }
+    monthToDate: null,  // { usd: 0, myr: 0, fetchedAt: Date }
+    lastError: null
+};
+
+async function fetchAnthropicCost(startDate, endDate) {
+    // Skip gracefully if Admin key not configured
+    if (!ANTHROPIC_ADMIN_KEY) {
+        return null;
+    }
+    
+    try {
+        const startingAt = startDate.toISOString().slice(0, 19) + 'Z';
+        const endingAt = endDate.toISOString().slice(0, 19) + 'Z';
+        
+        const url = `${ANTHROPIC_COST_API}?starting_at=${encodeURIComponent(startingAt)}&ending_at=${encodeURIComponent(endingAt)}`;
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'anthropic-version': '2023-06-01',
+                'x-api-key': ANTHROPIC_ADMIN_KEY
+            }
+        });
+        
+        if (!response.ok) {
+            const errText = await response.text();
+            console.error(`❌ Admin API error ${response.status}: ${errText.slice(0, 200)}`);
+            adminCostCache.lastError = `${response.status}: ${errText.slice(0, 100)}`;
+            return null;
+        }
+        
+        const data = await response.json();
+        
+        // Sum all cost entries across all time buckets
+        // Amount is returned as decimal string in USD cents (e.g. "123.45" = $1.23)
+        let totalCents = 0;
+        if (data.data && Array.isArray(data.data)) {
+            for (const bucket of data.data) {
+                if (bucket.results && Array.isArray(bucket.results)) {
+                    for (const entry of bucket.results) {
+                        totalCents += parseFloat(entry.amount || "0");
+                    }
+                }
+            }
+        }
+        
+        const totalUSD = totalCents / 100;
+        const totalMYR = totalUSD * COST_CONFIG.USD_TO_MYR;
+        
+        return { usd: totalUSD, myr: totalMYR, fetchedAt: new Date() };
+        
+    } catch (err) {
+        console.error(`❌ Admin API fetch failed: ${err.message}`);
+        adminCostCache.lastError = err.message;
+        return null;
+    }
+}
+
+// Refresh both today + month-to-date cached values
+async function refreshAdminCostData() {
+    if (!ANTHROPIC_ADMIN_KEY) {
+        console.log("ℹ️ ANTHROPIC_ADMIN_KEY not set — unified tracking disabled");
+        return;
+    }
+    
+    const now = new Date();
+    
+    // Today: midnight MYT → now (approximated via UTC offset of -8 hours for MYT)
+    const todayStart = new Date(now);
+    todayStart.setUTCHours(16, 0, 0, 0); // 16:00 UTC = midnight MYT (+8)
+    if (todayStart > now) todayStart.setUTCDate(todayStart.getUTCDate() - 1);
+    
+    // Month-to-date: 1st of month MYT → now
+    const monthStart = new Date(todayStart);
+    monthStart.setUTCDate(1);
+    
+    const [todayCost, monthCost] = await Promise.all([
+        fetchAnthropicCost(todayStart, now),
+        fetchAnthropicCost(monthStart, now)
+    ]);
+    
+    if (todayCost) {
+        adminCostCache.today = todayCost;
+        console.log(`🌐 Admin API — Today: $${todayCost.usd.toFixed(2)} (RM ${todayCost.myr.toFixed(2)})`);
+    }
+    if (monthCost) {
+        adminCostCache.monthToDate = monthCost;
+        console.log(`🌐 Admin API — MTD:   $${monthCost.usd.toFixed(2)} (RM ${monthCost.myr.toFixed(2)})`);
+    }
+}
+
+// Get cached data, refresh if stale (>10 min old)
+async function getUnifiedCostData() {
+    if (!ANTHROPIC_ADMIN_KEY) return null;
+    
+    const now = Date.now();
+    const cacheAge = adminCostCache.today ? now - adminCostCache.today.fetchedAt.getTime() : Infinity;
+    
+    // Refresh if cache is missing or >10 min old
+    if (cacheAge > 10 * 60 * 1000) {
+        await refreshAdminCostData();
+    }
+    
+    if (!adminCostCache.today || !adminCostCache.monthToDate) return null;
+    
+    const totalToday = adminCostCache.today.myr;
+    const totalMonth = adminCostCache.monthToDate.myr;
+    const sophiaToday = dailyUsage.costMYR;
+    const sophiaMonth = monthlyUsage.costMYR;
+    
+    return {
+        today: {
+            total: totalToday,
+            totalUSD: adminCostCache.today.usd,
+            sophia: sophiaToday,
+            other: Math.max(0, totalToday - sophiaToday)
+        },
+        month: {
+            total: totalMonth,
+            totalUSD: adminCostCache.monthToDate.usd,
+            sophia: sophiaMonth,
+            other: Math.max(0, totalMonth - sophiaMonth)
+        },
+        cachedAt: adminCostCache.today.fetchedAt
+    };
+}
+
+// Initial fetch on server start (non-blocking)
+refreshAdminCostData().catch(err => console.error("Initial admin fetch failed:", err.message));
+
+// Auto-refresh every 15 minutes
+setInterval(() => {
+    refreshAdminCostData().catch(err => console.error("Admin refresh failed:", err.message));
+}, 15 * 60 * 1000);
+
+// ==========================================
 // 🧠 10. SOPHIA BRAIN
 // ==========================================
 async function routeToAgentTeam(senderId, messageText, senderName) {
     try {
+        // 🛑 HARD CAP CHECK — stop BEFORE expensive API call
+        const cap = isCostCapExceeded();
+        if (cap) {
+            dailyUsage.blockedCalls++;
+            await notifyCapTriggered(cap);
+            
+            // Return graceful fallback — customer doesn't know it's a cost issue
+            return {
+                reply: "Hi Boss, sorry — our team is momentarily unavailable. Your message is important. We'll get back to you within a few hours. 🙏",
+                confidence: 10,
+                alert_type: null,
+                alert_details: null
+            };
+        }
+        
         if (!userSessions.has(senderId)) userSessions.set(senderId, []);
         let history = userSessions.get(senderId);
 
@@ -1127,28 +1440,66 @@ cron.schedule('0 23 * * *', async () => {
     
     let statusEmoji = "🟢";
     let statusText = "Healthy — within normal range";
-    if (dailyUsage.costMYR >= COST_CONFIG.DAILY_WARNING) { statusEmoji = "🟡"; statusText = "Elevated usage — monitoring"; }
+    if (dailyUsage.costMYR >= COST_CONFIG.DAILY_WARNING) { statusEmoji = "🟡"; statusText = "Elevated — monitor spending"; }
     if (dailyUsage.costMYR >= COST_CONFIG.DAILY_CRITICAL) { statusEmoji = "🔴"; statusText = "High usage — review needed"; }
+    if (dailyUsage.costMYR >= COST_CONFIG.DAILY_HARD_CAP) { statusEmoji = "🛑"; statusText = "HARD CAP HIT — Sophia was stopped"; }
+    
+    const dailyCapPct = ((dailyUsage.costMYR / COST_CONFIG.DAILY_HARD_CAP) * 100).toFixed(0);
+    const monthlyCapPct = ((monthlyUsage.costMYR / COST_CONFIG.MONTHLY_HARD_CAP) * 100).toFixed(0);
+    
+    // 🌐 Fetch latest admin API data
+    await refreshAdminCostData();
+    const unified = await getUnifiedCostData();
+    
+    let unifiedBlock = "";
+    let breakdownBlock = "";
+    let smartStatus = "";
+    
+    if (unified) {
+        const otherPct = unified.today.total > 0 ? ((unified.today.other / unified.today.total) * 100).toFixed(0) : 0;
+        const monthPctOf250 = ((unified.month.total / 250) * 100).toFixed(0);  // vs RM 250 budget
+        
+        unifiedBlock = `
+
+━━ 🌐 ALL ANTHROPIC APPS ━━
+💰 Total today: RM ${unified.today.total.toFixed(2)} ($${unified.today.totalUSD.toFixed(2)})
+💰 Total this month: RM ${unified.month.total.toFixed(2)} ($${unified.month.totalUSD.toFixed(2)})
+📊 Budget used: ${monthPctOf250}% of RM ${COST_CONFIG.MONTHLY_BUDGET}`;
+        
+        breakdownBlock = `
+
+━━ BREAKDOWN (TODAY) ━━
+• Sophia WhatsApp: RM ${unified.today.sophia.toFixed(2)}
+• Other apps: RM ${unified.today.other.toFixed(2)} (${otherPct}%)
+  (Enterprise OS, Claude Code, etc.)`;
+        
+        // Smarter status that considers OTHER apps
+        if (unified.today.other > 20 && unified.today.other > unified.today.sophia * 2) {
+            smartStatus = `\n⚠️ Other apps using more than expected today`;
+        }
+    } else if (ANTHROPIC_ADMIN_KEY) {
+        unifiedBlock = `\n\n⚠️ Admin API unreachable tonight.\n${adminCostCache.lastError ? `Error: ${adminCostCache.lastError}` : ''}`;
+    } else {
+        unifiedBlock = `\n\n💡 TIP: Set ANTHROPIC_ADMIN_KEY env var\nfor total-spend tracking across all your apps.`;
+    }
     
     const summary = `📊 SOPHIA DAILY REPORT ${statusEmoji}
 
 📅 ${dailyUsage.date}
 
-━━ TODAY'S USAGE ━━
+━━ SOPHIA WHATSAPP ━━
 💬 Conversations: ${dailyUsage.calls}
-📥 In tokens: ${dailyUsage.inputTokens.toLocaleString()}
-📤 Out tokens: ${dailyUsage.outputTokens.toLocaleString()}
 💰 Cost: RM ${dailyUsage.costMYR.toFixed(2)} ($${dailyUsage.costUSD.toFixed(2)})
-📊 Avg: RM ${dailyUsage.calls > 0 ? (dailyUsage.costMYR / dailyUsage.calls).toFixed(3) : '0.000'}/call
+📊 Avg: RM ${dailyUsage.calls > 0 ? (dailyUsage.costMYR / dailyUsage.calls).toFixed(3) : '0.000'}/call${unifiedBlock}${breakdownBlock}
 
-━━ MONTH-TO-DATE ━━
-💬 Total: ${monthlyUsage.calls} conversations
-💰 Spent: RM ${monthlyUsage.costMYR.toFixed(2)}
-🎯 Budget: RM ${COST_CONFIG.MONTHLY_BUDGET}
-📈 ${((monthlyUsage.costMYR / COST_CONFIG.MONTHLY_BUDGET) * 100).toFixed(1)}% of budget used
+━━ 🛑 HARD CAPS ━━
+Daily: RM ${dailyUsage.costMYR.toFixed(2)} / RM ${COST_CONFIG.DAILY_HARD_CAP} (${dailyCapPct}%)
+Monthly: RM ${monthlyUsage.costMYR.toFixed(2)} / RM ${COST_CONFIG.MONTHLY_HARD_CAP} (${monthlyCapPct}%)
+Blocked calls today: ${dailyUsage.blockedCalls}
+${dailyUsage.capOverride ? '⚠️ Override was active today' : '✅ No cap breaches'}
 
 ━━ STATUS ━━
-✅ ${statusText}
+${statusEmoji} ${statusText}${smartStatus}
 
 Good night, Boss! ☕`;
     
@@ -1168,6 +1519,8 @@ app.listen(PORT, () => {
     console.log(`🚀 Phone: ${PHONE_NUMBER_ID} | Brain: ${ACTIVE_MODEL}`);
     console.log(`📅 Marketing: 9 AM MYT → Boss +${BOSS_PHONE}`);
     console.log(`📚 Photo Library: Auto-discovery active (scans Supabase on startup + every 6hrs)`);
+    console.log(`🛑 Hard Caps: Daily RM ${COST_CONFIG.DAILY_HARD_CAP} | Monthly RM ${COST_CONFIG.MONTHLY_HARD_CAP}`);
+    console.log(`🌐 Unified tracking: ${ANTHROPIC_ADMIN_KEY ? 'ACTIVE (admin API + local)' : 'DISABLED (set ANTHROPIC_ADMIN_KEY to enable)'}`);
     console.log(`🚨 Alert System: ACTIVE`);
     console.log(`💰 Cost Tracking: ACTIVE | Daily warn: RM ${COST_CONFIG.DAILY_WARNING} | Critical: RM ${COST_CONFIG.DAILY_CRITICAL} | Monthly budget: RM ${COST_CONFIG.MONTHLY_BUDGET}`);
     console.log(`📊 Daily report: 11 PM MYT → Boss | Send "USAGE" to Sophia anytime for instant check`);
