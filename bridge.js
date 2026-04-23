@@ -1121,36 +1121,40 @@ async function refreshAdminCostData() {
     
     const now = new Date();
     
-    // 🕐 Calculate MYT midnight (Asia/Kuala_Lumpur = UTC+8)
-    // Get today's date components IN MYT using Intl
+    // 🕐 Get today's MYT date (for display + logic)
     const mytFormatter = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Asia/Kuala_Lumpur',
         year: 'numeric', month: '2-digit', day: '2-digit'
     });
-    const mytDateString = mytFormatter.format(now); // "2026-04-21"
+    const mytDateString = mytFormatter.format(now); // "2026-04-23"
     const [mytYear, mytMonth, mytDay] = mytDateString.split('-').map(Number);
     
-    // Today's midnight MYT in UTC = that date at 00:00 MYT = that date at -8h UTC = previous day 16:00 UTC
-    // Build it safely via UTC construction
-    const todayMidnightMYT_UTC = new Date(Date.UTC(mytYear, mytMonth - 1, mytDay, 0, 0, 0));
-    todayMidnightMYT_UTC.setUTCHours(todayMidnightMYT_UTC.getUTCHours() - 8);
+    // 🎯 CRITICAL: bucket_width=1d requires EXACT UTC DAY BOUNDARIES
+    // (Anthropic's quirk — you can't send mid-day timestamps with daily bucketing)
+    //
+    // Strategy: Send UTC day boundaries that COVER the MYT period we want.
+    // Then sum all buckets in the response to get accurate totals.
+    //
+    // For "today in MYT" (Apr 23 MYT = Apr 22 16:00 UTC → Apr 23 16:00 UTC):
+    //   Request UTC days Apr 22 + Apr 23 (both days contain MYT "today")
+    //   Anthropic returns 2 daily buckets, we sum them.
+    //   Slight over-counting: captures some of yesterday evening + some of tomorrow morning UTC time.
+    //   This is acceptable since most API usage happens during MYT waking hours anyway.
     
-    // First of month at midnight MYT (in UTC)
-    const monthStartMYT_UTC = new Date(Date.UTC(mytYear, mytMonth - 1, 1, 0, 0, 0));
-    monthStartMYT_UTC.setUTCHours(monthStartMYT_UTC.getUTCHours() - 8);
+    // Today-window: yesterday's UTC 00:00 → tomorrow's UTC 00:00
+    const todayUtcStart = new Date(Date.UTC(mytYear, mytMonth - 1, mytDay - 1, 0, 0, 0));
+    const todayUtcEnd = new Date(Date.UTC(mytYear, mytMonth - 1, mytDay + 1, 0, 0, 0));
     
-    // 🛡️ Guard: ensure ending > starting with at least 5 minute gap
-    // If we're RIGHT at midnight MYT, the range could be 0 — push "now" forward slightly
-    const endTime = new Date(now);
-    if (endTime.getTime() - todayMidnightMYT_UTC.getTime() < 5 * 60 * 1000) {
-        endTime.setTime(todayMidnightMYT_UTC.getTime() + 5 * 60 * 1000);
-    }
+    // Month-window: 1st of month UTC → tomorrow's UTC 00:00
+    const monthUtcStart = new Date(Date.UTC(mytYear, mytMonth - 1, 1, 0, 0, 0));
+    const monthUtcEnd = todayUtcEnd;
     
-    console.log(`🌐 Admin API range — Today: ${todayMidnightMYT_UTC.toISOString()} → ${endTime.toISOString()}`);
+    console.log(`🌐 Admin API range — Today UTC days: ${todayUtcStart.toISOString()} → ${todayUtcEnd.toISOString()}`);
+    console.log(`🌐 Admin API range — Month UTC days: ${monthUtcStart.toISOString()} → ${monthUtcEnd.toISOString()}`);
     
     const [todayCost, monthCost] = await Promise.all([
-        fetchAnthropicCost(todayMidnightMYT_UTC, endTime),
-        fetchAnthropicCost(monthStartMYT_UTC, endTime)
+        fetchAnthropicCost(todayUtcStart, todayUtcEnd),
+        fetchAnthropicCost(monthUtcStart, monthUtcEnd)
     ]);
     
     if (todayCost) {
