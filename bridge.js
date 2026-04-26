@@ -391,14 +391,17 @@ Section C — Premium: Sunrise Dreamer RM 90/kg, Emerald White RM 90/kg, Phoenix
 // 👑 6. BOSS MODE — Personal Assistant via WhatsApp
 // ==========================================
 const BOSS_COMMAND_PATTERNS = [
-    { regex: /^(lead|leads)\s*(report|update|status|summary|today|this week)/i, handler: 'leadReport' },
-    { regex: /^cron\s*(status|log|report|history|today)/i, handler: 'cronReport' },
-    { regex: /^(revenue|sales)\s*(report|today|this week|this month)?/i, handler: 'revenueReport' },
-    { regex: /^batch\s*(log|report|today|latest)/i, handler: 'batchReport' },
-    { regex: /^customer(s)?\s*(list|report|new|recent)/i, handler: 'customerReport' },
-    { regex: /^pipeline\s*(status|report|funnel)?/i, handler: 'pipelineReport' },
-    { regex: /^(inventory|stock)\s*(check|status|level)?/i, handler: 'inventoryReport' },
-    { regex: /^(coffee|market)\s*(news|trend|price|update)/i, handler: 'marketNews' },
+    { regex: /lead(s)?\s*(report|update|status|summary|today|this week)/i, handler: 'leadReport' },
+    { regex: /cron\s*(status|log|report|history|today)/i, handler: 'cronReport' },
+    { regex: /(revenue|sales)\s*(report|today|this week|this month)/i, handler: 'revenueReport' },
+    { regex: /batch\s*(log|report|today|latest)/i, handler: 'batchReport' },
+    { regex: /customer(s)?\s*(list|report|new|recent)/i, handler: 'customerReport' },
+    { regex: /pipeline\s*(status|report|funnel)/i, handler: 'pipelineReport' },
+    { regex: /(inventory|stock)\s*(check|status|level|report)/i, handler: 'inventoryReport' },
+    { regex: /(coffee|market)\s*(news|trend|price|update)/i, handler: 'marketNews' },
+    { regex: /how many lead/i, handler: 'leadReport' },
+    { regex: /what.*(lead|pipeline|funnel)/i, handler: 'pipelineReport' },
+    { regex: /any.*(hot|new)\s*lead/i, handler: 'leadReport' },
 ];
 
 async function handleBossMode(messageText) {
@@ -520,6 +523,19 @@ async function supabaseReport(table, header, buildQuery, formatData) {
 }
 
 async function bossAIChat(message) {
+    // Before using AI, try to detect if Boss is asking for data
+    const dataKeywords = /(lead|cron|revenue|sales|batch|customer|pipeline|inventory|stock|report|status|how many|show me|give me|what)/i;
+    if (dataKeywords.test(message)) {
+        // Try matching more loosely
+        if (/lead/i.test(message)) return await executeBossCommand('leadReport', message);
+        if (/cron/i.test(message)) return await executeBossCommand('cronReport', message);
+        if (/revenue|sales/i.test(message)) return await executeBossCommand('revenueReport', message);
+        if (/batch|roast/i.test(message)) return await executeBossCommand('batchReport', message);
+        if (/customer/i.test(message)) return await executeBossCommand('customerReport', message);
+        if (/pipeline|funnel|conversion/i.test(message)) return await executeBossCommand('pipelineReport', message);
+        if (/inventory|stock/i.test(message)) return await executeBossCommand('inventoryReport', message);
+    }
+
     try {
         const msg = await anthropic.messages.create({
             model: ACTIVE_MODEL,
@@ -528,10 +544,18 @@ async function bossAIChat(message) {
 Call Jason "Boss". Be smart, concise, proactive. Plain text only (WhatsApp format). No markdown.
 Keep responses scannable. Current date: ${new Date().toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' })}.
 
-Available commands Boss can text you:
-- lead report / cron status / revenue report / batch report
-- customer report / pipeline report / inventory status / market news
-- USAGE / COST / RESCAN / RESET COST
+IMPORTANT: You have access to real business data. If Boss asks for any reports or data, tell him the exact command to use:
+- "lead report" → pipeline status from Supabase
+- "cron status" → autonomous agent run history
+- "revenue report" → converted customer revenue
+- "batch report" → latest roasting logs
+- "customer report" → recent WhatsApp customers
+- "pipeline report" → conversion funnel
+- "inventory status" → bean stock levels
+- "market news" → coffee industry trends
+- USAGE → API cost tracking
+
+Do NOT make up data. If he asks for numbers, tell him the command to get real data.
 
 Business context: Big Jpresso roasts specialty beans, sells via bloomdaily.io, wholesale to cafes, runs Jpresso Academy.`,
             messages: [{ role: "user", content: message }]
