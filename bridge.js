@@ -769,7 +769,7 @@ app.post('/webhook', async (req, res) => {
                         confidence: 10
                     });
 
-                    const confirmMsg = `✅ Order confirmed! Thank you${memory.name ? ', ' + memory.name : ', Boss'}!\n\nTotal: RM ${order.total}\n\nPayment:\n1. Bank transfer: Maybank 5627-4825-3190 (Big Jpresso Sdn Bhd)\n2. Online: ${RETAIL_URL}\n\nSend payment proof here and we'll process within 24hrs. ☕`;
+                    const confirmMsg = `✅ Order confirmed! Thank you${memory.name ? ', ' + memory.name : ', Boss'}!\n\nTotal: RM ${order.total}\n\nPayment:\n1. Bank transfer: RHB Bank Bhd 2-14352000 61145 (Big Jpresso Sdn Bhd)\n2. Online: ${RETAIL_URL}\n\nSend payment proof here and we'll process within 24hrs. ☕`;
                     await sendWhatsAppMessage(senderNumber, confirmMsg);
                     return res.sendStatus(200);
                 }
