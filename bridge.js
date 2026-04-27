@@ -623,6 +623,23 @@ When customer wants to order:
 2. Set order_intent with structured items
 3. Sophia will auto-generate order summary + payment link
 
+=== DOCUMENT SENDING (AUTO) ===
+Sophia auto-sends PDFs when customers ask. Just respond naturally — the server handles the file delivery:
+- "What beans do you have?" / "catalogue" / "product list" → Product Catalogue PDF sent automatically
+- "Barista course?" / "academy" / "coffee course" → Academy overview + sample module sent automatically
+- "Module 1.1" / specific module name → That specific module PDF sent automatically
+You do NOT need to provide download links. Just mention that you're sending the document and it will arrive.
+
+Available Academy Modules:
+
+FREE BARISTA COURSE (send to anyone who asks):
+Phase 1: 1.1 Bean & Terroir, 1.2 Water Chemistry, 1.3 Grind Dynamics, 1.4 Advanced Espresso
+Phase 2: 2.1 Milk Chemistry, 2.2 Latte Art, 2.3 Barista Ergonomics, 2.4 Equipment Maintenance
+Phase 3: 3.1 Roaster's Perspective, 3.2 Pour-Over Methodologies, 3.3 Sensory Analysis & Cupping
+
+ROASTING MASTERCLASS (separate paid course): RM 2,888 (includes on-site hands-on training at our roastery)
+- For roasting masterclass inquiries, escalate to Boss Jason
+
 REMEMBER: Response MUST be valid JSON starting with { and ending with }. No markdown fences.
 `;
 
@@ -810,6 +827,20 @@ app.post('/webhook', async (req, res) => {
                 }
                 await saveCustomerMemory(senderNumber);
 
+                // 📄 Auto-send documents if customer asked about catalogue/academy
+                const docMatches = detectDocumentTrigger(messageText);
+                for (const doc of docMatches) {
+                    if (doc.key === 'academy_overview') {
+                        // Send academy info text + sample module
+                        await sendWhatsAppMessage(senderNumber, ACADEMY_INFO);
+                        // Send Module 1.1 as a sample
+                        const sample = DOCUMENT_LIBRARY.academy_1_1;
+                        await sendWhatsAppDocument(senderNumber, sample.url, sample.filename, "📚 Here's a sample — Module 1.1: Anatomy of Bean & Terroir");
+                    } else if (doc.url) {
+                        await sendWhatsAppDocument(senderNumber, doc.url, doc.filename, doc.caption);
+                    }
+                }
+
                 // Alert boss if needed
                 if (aiResponse.alert_type && aiResponse.alert_type !== "NONE") {
                     await sendBossAlert({
@@ -897,6 +928,154 @@ async function sendInstagramMessage(recipientId, textMsg) {
         else console.error(`❌ IG API Error:`, await response.text());
     } catch (err) { console.error("❌ IG Network Error:", err); }
 }
+
+// ==========================================
+// 📄 10b. DOCUMENT LIBRARY + WHATSAPP DOC SENDER
+// ==========================================
+const DOC_BASE = `${SUPABASE_URL}/storage/v1/object/public/jpresso-marketing`;
+
+const DOCUMENT_LIBRARY = {
+    // Product Catalog
+    catalogue: {
+        url: `${DOC_BASE}/jpresso-catalogue/Jpresso_Coffee_Catalogue%202026.pdf`,
+        filename: "Jpresso_Coffee_Catalogue_2026.pdf",
+        caption: "☕ Jpresso Coffee Catalogue 2026 — Full bean selection, pricing & brewing guides",
+        triggers: ["catalogue", "catalog", "product list", "menu", "what beans", "bean list", "price list", "all products", "full list"]
+    },
+
+    // Academy Modules
+    academy_1_1: {
+        url: `${DOC_BASE}/jpresso-academy/Module%201.1-%20Anatomy%20of%20Bean%20%26%20Terroir%20(Extraction_Architecture).pdf`,
+        filename: "Module_1.1_Anatomy_of_Bean_Terroir.pdf",
+        caption: "📚 Module 1.1 — Anatomy of Bean & Terroir (Extraction Architecture)",
+        triggers: ["module 1.1", "anatomy of bean", "terroir", "extraction architecture"]
+    },
+    academy_1_2: {
+        url: `${DOC_BASE}/jpresso-academy/Module%201.2-%20Water%20Chemistry%20Fundamentals.pdf`,
+        filename: "Module_1.2_Water_Chemistry.pdf",
+        caption: "📚 Module 1.2 — Water Chemistry Fundamentals",
+        triggers: ["module 1.2", "water chemistry", "water quality"]
+    },
+    academy_1_3: {
+        url: `${DOC_BASE}/jpresso-academy/Module%201.3-Grind%20Dynamics%20%26%20Particle%20Distribution.pdf`,
+        filename: "Module_1.3_Grind_Dynamics.pdf",
+        caption: "📚 Module 1.3 — Grind Dynamics & Particle Distribution",
+        triggers: ["module 1.3", "grind dynamics", "particle distribution", "grind size"]
+    },
+    academy_1_4: {
+        url: `${DOC_BASE}/jpresso-academy/Module%201.4-Advanced%20Espresso%20Mechanics.pdf`,
+        filename: "Module_1.4_Advanced_Espresso.pdf",
+        caption: "📚 Module 1.4 — Advanced Espresso Mechanics",
+        triggers: ["module 1.4", "espresso mechanics", "advanced espresso"]
+    },
+    academy_2_1: {
+        url: `${DOC_BASE}/jpresso-academy/Module%202.1-Milk%20Chemistry%20%26%20Thermodynamics.pdf`,
+        filename: "Module_2.1_Milk_Chemistry.pdf",
+        caption: "📚 Module 2.1 — Milk Chemistry & Thermodynamics",
+        triggers: ["module 2.1", "milk chemistry", "milk science", "thermodynamics"]
+    },
+    academy_2_2: {
+        url: `${DOC_BASE}/jpresso-academy/Module%202%2C2-Latte%20Art%20Techniques.pdf`,
+        filename: "Module_2.2_Latte_Art.pdf",
+        caption: "📚 Module 2.2 — Latte Art Techniques",
+        triggers: ["module 2.2", "latte art", "milk art"]
+    },
+    academy_2_3: {
+        url: `${DOC_BASE}/jpresso-academy/Module%202.3-Barista%20Ergonomics%20and%20Workflow.pdf`,
+        filename: "Module_2.3_Barista_Ergonomics.pdf",
+        caption: "📚 Module 2.3 — Barista Ergonomics and Workflow",
+        triggers: ["module 2.3", "ergonomics", "barista workflow"]
+    },
+    academy_2_4: {
+        url: `${DOC_BASE}/jpresso-academy/Module%202.4%20-%20Equipment%20Maintenance%20%26%20Diagnostics.pdf`,
+        filename: "Module_2.4_Equipment_Maintenance.pdf",
+        caption: "📚 Module 2.4 — Equipment Maintenance & Diagnostics",
+        triggers: ["module 2.4", "equipment maintenance", "machine maintenance", "diagnostics"]
+    },
+    academy_3_1: {
+        url: `${DOC_BASE}/jpresso-academy/Module%203.1-The%20Roaster%27s%20Perspective%20on%20the%20Bar.pdf`,
+        filename: "Module_3.1_Roasters_Perspective.pdf",
+        caption: "📚 Module 3.1 — The Roaster's Perspective on the Bar",
+        triggers: ["module 3.1", "roaster perspective", "roaster on bar"]
+    },
+    academy_3_2: {
+        url: `${DOC_BASE}/jpresso-academy/Module%203.2-Specialty%20Pour-Over%20Methodologies.pdf`,
+        filename: "Module_3.2_Pour_Over_Methodologies.pdf",
+        caption: "📚 Module 3.2 — Specialty Pour-Over Methodologies",
+        triggers: ["module 3.2", "pour over", "pourover", "v60 method"]
+    },
+    academy_3_3: {
+        url: `${DOC_BASE}/jpresso-academy/Module%203.3-Sensory%20Analysis%20and%20Cupping%20Protocols.pdf`,
+        filename: "Module_3.3_Sensory_Analysis.pdf",
+        caption: "📚 Module 3.3 — Sensory Analysis and Cupping Protocols",
+        triggers: ["module 3.3", "sensory analysis", "cupping", "cupping protocol"]
+    },
+
+    // Academy overview (sends all info)
+    academy_overview: {
+        url: null, // No single PDF — Sophia describes the course
+        filename: null,
+        caption: null,
+        triggers: ["academy", "barista course", "barista training", "coffee course", "roasting course", "masterclass", "learn barista", "jpresso academy"]
+    }
+};
+
+async function sendWhatsAppDocument(recipientPhone, docUrl, filename, caption) {
+    const url = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                messaging_product: "whatsapp",
+                to: recipientPhone,
+                type: "document",
+                document: { link: docUrl, filename: filename, caption: caption }
+            })
+        });
+        if (response.ok) console.log(`📄 Document sent to +${recipientPhone}: ${filename}`);
+        else console.error(`❌ Doc send failed:`, await response.text());
+    } catch (err) { console.error("❌ Doc send error:", err); }
+}
+
+// Check if customer message should trigger a document send
+function detectDocumentTrigger(messageText) {
+    const lower = messageText.toLowerCase();
+    const matched = [];
+
+    for (const [key, doc] of Object.entries(DOCUMENT_LIBRARY)) {
+        if (doc.triggers.some(t => lower.includes(t))) {
+            matched.push({ key, ...doc });
+        }
+    }
+    return matched;
+}
+
+// Academy overview text (when customer asks about academy/course)
+const ACADEMY_INFO = `📚 JPRESSO ACADEMY — FREE Barista Course
+
+11 modules covering everything from bean science to sensory analysis — completely FREE:
+
+Phase 1 — Foundation:
+• 1.1 Anatomy of Bean & Terroir
+• 1.2 Water Chemistry Fundamentals
+• 1.3 Grind Dynamics & Particle Distribution
+• 1.4 Advanced Espresso Mechanics
+
+Phase 2 — Craft:
+• 2.1 Milk Chemistry & Thermodynamics
+• 2.2 Latte Art Techniques
+• 2.3 Barista Ergonomics & Workflow
+• 2.4 Equipment Maintenance & Diagnostics
+
+Phase 3 — Mastery:
+• 3.1 The Roaster's Perspective on the Bar
+• 3.2 Specialty Pour-Over Methodologies
+• 3.3 Sensory Analysis & Cupping Protocols
+
+All modules are FREE — just ask me for any module and I'll send it to you!
+
+We also offer a hands-on Roasting Masterclass (RM 2,888) at our roastery. Interested? I'll connect you with our Chief.`;
 
 
 // ==========================================
