@@ -11,7 +11,12 @@ const cron = require('node-cron');
 // 🔑 2. CONFIGURATION
 // ==========================================
 const app = express();
-app.use(bodyParser.json());
+
+// Parse JSON for all routes EXCEPT Stripe webhook (which needs raw body)
+app.use((req, res, next) => {
+    if (req.path === '/webhook/stripe') return next();
+    bodyParser.json()(req, res, next);
+});
 
 const PORT = process.env.PORT || 3000;
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
@@ -1450,7 +1455,115 @@ cron.schedule('0 */4 * * *', () => {
 
 
 // ==========================================
-// 🏥 17. HEALTH
+// 🛒 17. STRIPE WEBHOOK — Order Notifications
+// ==========================================
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
+
+app.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+    if (!STRIPE_WEBHOOK_SECRET) {
+        console.error("❌ STRIPE_WEBHOOK_SECRET not configured");
+        return res.sendStatus(500);
+    }
+
+    const sig = req.headers['stripe-signature'];
+    let event;
+
+    // Verify signature
+    try {
+        const crypto = require('crypto');
+        const payload = req.body.toString();
+        const sigParts = {};
+        sig.split(',').forEach(part => {
+            const [key, value] = part.split('=');
+            sigParts[key] = value;
+        });
+
+        const timestamp = sigParts.t;
+        const signedPayload = `${timestamp}.${payload}`;
+        const expectedSig = crypto.createHmac('sha256', STRIPE_WEBHOOK_SECRET)
+            .update(signedPayload).digest('hex');
+
+        if (expectedSig !== sigParts.v1) {
+            console.error("❌ Stripe signature verification failed");
+            return res.sendStatus(400);
+        }
+
+        event = JSON.parse(payload);
+    } catch (err) {
+        console.error("❌ Stripe webhook error:", err.message);
+        return res.sendStatus(400);
+    }
+
+    console.log(`💳 Stripe event: ${event.type}`);
+
+    // Handle checkout.session.completed
+    if (event.type === 'checkout.session.completed') {
+        const session = event.data.object;
+
+        const customerName = session.customer_details?.name || 'Unknown';
+        const customerEmail = session.customer_details?.email || 'No email';
+        const customerPhone = session.customer_details?.phone || '';
+        const amountTotal = ((session.amount_total || 0) / 100).toFixed(2);
+        const currency = (session.currency || 'myr').toUpperCase();
+        const paymentStatus = session.payment_status || 'unknown';
+        const sessionId = session.id || '';
+        const paymentMethod = session.payment_method_types?.[0] || 'card';
+
+        // Get line items description if available
+        const lineItems = session.metadata?.items || session.metadata?.description || '';
+
+        const timestamp = new Date().toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', hour12: false });
+
+        const orderMsg = `🛒 NEW BLOOMDAILY ORDER!\n━━━━━━━━━━━━━━━\n📅 ${timestamp} MYT\n\n👤 ${customerName}\n📧 ${customerEmail}${customerPhone ? '\n📞 ' + customerPhone : ''}\n\n💰 ${currency} ${amountTotal}\n💳 ${paymentMethod.toUpperCase()} — ${paymentStatus === 'paid' ? '✅ Paid' : '⏳ ' + paymentStatus}${lineItems ? '\n📦 ' + lineItems : ''}\n\n🔗 Session: ${sessionId.slice(-12)}\n━━━━━━━━━━━━━━━\nCheck Stripe dashboard for full details.`;
+
+        try {
+            await sendWhatsAppMessage(BOSS_PHONE, orderMsg);
+            console.log(`✅ Order notification sent to Boss: ${currency} ${amountTotal} from ${customerName}`);
+        } catch (err) {
+            console.error("❌ Failed to send order notification:", err.message);
+        }
+
+        // Save to customer memory if phone available
+        if (customerPhone) {
+            const cleanPhone = customerPhone.replace(/\D/g, '');
+            if (cleanPhone) {
+                const mem = await loadCustomerMemory(cleanPhone);
+                if (!mem.name && customerName !== 'Unknown') mem.name = customerName;
+                mem.orderHistory.push({
+                    date: new Date().toISOString().slice(0, 10),
+                    items: lineItems || 'bloomdaily.io order',
+                    total: parseFloat(amountTotal),
+                    source: 'stripe'
+                });
+                mem.totalSpent += parseFloat(amountTotal);
+                mem.lastOrderDate = new Date().toISOString().slice(0, 10);
+                if (!mem.tags.includes('stripe_customer')) mem.tags.push('stripe_customer');
+                await saveCustomerMemory(cleanPhone);
+                console.log(`🧠 Customer memory updated for +${cleanPhone}`);
+            }
+        }
+    }
+
+    // Handle subscription events too
+    if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated') {
+        const sub = event.data.object;
+        const status = sub.status || 'unknown';
+        const interval = sub.items?.data?.[0]?.plan?.interval || '';
+        const amount = ((sub.items?.data?.[0]?.plan?.amount || 0) / 100).toFixed(2);
+        const currency = (sub.currency || 'myr').toUpperCase();
+
+        const subMsg = `📦 SUBSCRIPTION ${event.type.includes('created') ? 'NEW' : 'UPDATED'}\n━━━━━━━━━━━━━━━\nStatus: ${status}\nPlan: ${currency} ${amount}/${interval}\nCustomer: ${sub.customer}\n━━━━━━━━━━━━━━━`;
+
+        await sendWhatsAppMessage(BOSS_PHONE, subMsg);
+        console.log(`📦 Subscription notification sent`);
+    }
+
+    res.json({ received: true });
+});
+
+
+// ==========================================
+// 🏥 18. HEALTH
 // ==========================================
 app.get('/', (req, res) => {
     res.json({
@@ -1465,7 +1578,7 @@ app.get('/health', (req, res) => res.json({ ok: true }));
 
 
 // ==========================================
-// 🚀 18. START
+// 🚀 19. START
 // ==========================================
 app.listen(PORT, () => {
     console.log(`\n╔════════════════════════════════════════════════╗`);
