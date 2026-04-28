@@ -465,12 +465,13 @@ async function executeBossCommand(handler, message) {
             return r;
         });
 
-        case 'batchReport': return await supabaseReport('roasting_logs', `🔥 LATEST BATCHES\n━━━━━━━━━━━━━━━`, qry => qry + '?select=*&order=created_at.desc&limit=5', data => {
+        case 'batchReport': return await supabaseReport('roast_logs', `🔥 LATEST BATCHES\n━━━━━━━━━━━━━━━`, qry => qry + '?select=*&order=created_at.desc&limit=5', data => {
             let r = '';
             for (const b of data) {
-                r += `☕ ${b.bean_name || b.origin || 'Batch'} (${(b.created_at || '').slice(0, 10)})\n`;
-                if (b.weight_in) r += `   In: ${b.weight_in}kg → Out: ${b.weight_out || '—'}kg\n`;
-                if (b.first_crack) r += `   1C: ${b.first_crack} | Drop: ${b.drop_time || '—'}\n`;
+                r += `☕ ${b.bean_name || b.sku || b.origin || 'Batch'} (${(b.created_at || '').slice(0, 10)})\n`;
+                if (b.green_weight || b.weight_in) r += `   In: ${b.green_weight || b.weight_in}kg → Out: ${b.roasted_weight || b.weight_out || '—'}kg\n`;
+                if (b.first_crack) r += `   1C: ${b.first_crack} | Drop: ${b.drop_time || b.end_time || '—'}\n`;
+                if (b.roast_level) r += `   Roast: ${b.roast_level}\n`;
                 if (b.notes) r += `   ${b.notes}\n`;
             }
             return r;
@@ -497,7 +498,7 @@ async function executeBossCommand(handler, message) {
             return `${t} Total → ${c} Contacted (${cr}%) → ${resp} Responded (${rr}%) → ${conv} Converted (${clr}%)\n\n🆕 New: ${t - c - dead}\n📨 Contacted: ${c}\n💬 Responded: ${resp}\n✅ Converted: ${conv}\n❌ Dead: ${dead}`;
         });
 
-        case 'inventoryReport': return await supabaseReport('inventory', `📦 INVENTORY STATUS\n━━━━━━━━━━━━━━━`, qry => qry + '?select=*&order=bean_name.asc', data => {
+        case 'inventoryReport': return await supabaseReport('inventory', `📦 GREEN BEAN STOCK\n━━━━━━━━━━━━━━━`, qry => qry + '?select=*&sku=not.ilike.*Roasted*&order=bean_name.asc', data => {
             let r = '';
             for (const i of data) {
                 const stock = parseFloat(i.stock_kg || 0).toFixed(1);
