@@ -468,11 +468,12 @@ async function executeBossCommand(handler, message) {
         case 'batchReport': return await supabaseReport('roast_logs', `🔥 LATEST BATCHES\n━━━━━━━━━━━━━━━`, qry => qry + '?select=*&order=created_at.desc&limit=5', data => {
             let r = '';
             for (const b of data) {
-                r += `☕ ${b.bean_name || b.sku || b.origin || 'Batch'} (${(b.created_at || '').slice(0, 10)})\n`;
-                if (b.green_weight || b.weight_in) r += `   In: ${b.green_weight || b.weight_in}kg → Out: ${b.roasted_weight || b.weight_out || '—'}kg\n`;
-                if (b.first_crack) r += `   1C: ${b.first_crack} | Drop: ${b.drop_time || b.end_time || '—'}\n`;
-                if (b.roast_level) r += `   Roast: ${b.roast_level}\n`;
-                if (b.notes) r += `   ${b.notes}\n`;
+                r += `☕ ${b.sku || 'Unknown'} — ${b.batch_id || ''}\n`;
+                r += `   Date: ${(b.created_at || '').slice(0, 10)}\n`;
+                r += `   Green: ${b.green_kg || '—'}kg → Roasted: ${b.roasted_kg || '—'}kg\n`;
+                if (b.operator) r += `   Operator: ${b.operator}\n`;
+                if (b.notes) r += `   Notes: ${b.notes}\n`;
+                r += `\n`;
             }
             return r;
         });
