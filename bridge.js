@@ -500,8 +500,9 @@ async function executeBossCommand(handler, message) {
         case 'inventoryReport': return await supabaseReport('inventory', `📦 INVENTORY STATUS\n━━━━━━━━━━━━━━━`, qry => qry + '?select=*&order=bean_name.asc', data => {
             let r = '';
             for (const i of data) {
-                const warn = (i.stock_kg || 0) < 5 ? ' ⚠️ LOW' : '';
-                r += `☕ ${i.bean_name}: ${i.stock_kg || 0}kg${warn}\n`;
+                const stock = parseFloat(i.stock_kg || 0).toFixed(1);
+                const warn = parseFloat(stock) < 5 ? ' ⚠️ LOW' : '';
+                r += `☕ ${i.bean_name}: ${stock}kg${warn}\n`;
             }
             return r;
         });
