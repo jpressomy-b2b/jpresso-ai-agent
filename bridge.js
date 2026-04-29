@@ -415,6 +415,9 @@ const BOSS_COMMAND_PATTERNS = [
     { regex: /catalogue|catalog/i, handler: 'sendCatalogue' },
     { regex: /(send|show|give).*(academy|barista|course|module)/i, handler: 'sendAcademy' },
     { regex: /module\s*\d/i, handler: 'sendModule' },
+    { regex: /(marketing|draft|caption|social media|ig|instagram|fb|facebook)\s*(draft|post|content|caption|idea)?/i, handler: 'generateDrafts' },
+    { regex: /retry\s*(draft|marketing|post)?/i, handler: 'generateDrafts' },
+    { regex: /3\s*draft/i, handler: 'generateDrafts' },
 ];
 
 async function handleBossMode(messageText) {
@@ -547,6 +550,17 @@ async function executeBossCommand(handler, message) {
                 }
             }
             return "Module not found. Available: 1.1-1.4, 2.1-2.4, 3.1-3.3";
+        }
+
+        case 'generateDrafts': {
+            await sendWhatsAppMessage(BOSS_PHONE, "🎨 Generating 3 fresh marketing drafts... 30 seconds.");
+            try {
+                const drafts = await generateThreeDrafts();
+                await sendDraftsToBoss(drafts);
+                return null; // sendDraftsToBoss already sends the message
+            } catch (err) {
+                return `❌ Draft generation failed: ${err.message}`;
+            }
         }
 
         default: return await bossAIChat(message);
@@ -853,7 +867,7 @@ app.post('/webhook', async (req, res) => {
 
                     // 👑 NEW: Boss Mode personal assistant (all other boss messages)
                     const bossReply = await handleBossMode(messageText);
-                    await sendWhatsAppMessage(BOSS_PHONE, bossReply);
+                    if (bossReply) await sendWhatsAppMessage(BOSS_PHONE, bossReply);
                     return res.sendStatus(200);
                 }
 
