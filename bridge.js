@@ -448,7 +448,8 @@ async function executeBossCommand(handler, message) {
                 r += `\n\n━━ TOP HOT LEADS ━━`;
                 for (const h of hot.slice(0, 5)) {
                     r += `\n• ${h.business_name || 'Unknown'} (${h.location || '—'}) — ${h.priority_score}/10`;
-                    if (h.phone) r += `\n  📞 ${h.phone}`;
+                    if (h.phone && h.phone !== 'Not found - needs manual lookup' && h.phone !== 'N/A') r += `\n  📞 ${h.phone}`;
+                    else r += `\n  📞 No phone yet`;
                 }
             }
             return r;
