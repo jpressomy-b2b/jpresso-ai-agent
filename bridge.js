@@ -316,7 +316,7 @@ const JPRESSO_PRODUCTS = `
 === RETAIL: bloomdaily.io ONLY (NEVER mention Shopee) ===
 =============================================================
 URL: https://bloomdaily.io/subscribe.html
-Free shipping: Peninsular Malaysia | East Malaysia: RM 15
+Shipping: Rates vary by location — check at checkout
 
 🎯 SIZE STRATEGY (Weber's Law — ALWAYS LEAD WITH 500g):
 - 500g saves ~RM 8-17 vs buying 2x 250g
