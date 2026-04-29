@@ -407,6 +407,14 @@ const BOSS_COMMAND_PATTERNS = [
     { regex: /how many lead/i, handler: 'leadReport' },
     { regex: /what.*(lead|pipeline|funnel)/i, handler: 'pipelineReport' },
     { regex: /any.*(hot|new)\s*lead/i, handler: 'leadReport' },
+    { regex: /daily\s*(intel|briefing|report|update)/i, handler: 'dailyIntel' },
+    { regex: /morning\s*(report|briefing|update)/i, handler: 'dailyIntel' },
+    { regex: /what.*(happen|new|update).*today/i, handler: 'dailyIntel' },
+    { regex: /today.*(report|update|brief)/i, handler: 'dailyIntel' },
+    { regex: /(send|show|give).*(catalogue|catalog|product list|price list|menu)/i, handler: 'sendCatalogue' },
+    { regex: /catalogue|catalog/i, handler: 'sendCatalogue' },
+    { regex: /(send|show|give).*(academy|barista|course|module)/i, handler: 'sendAcademy' },
+    { regex: /module\s*\d/i, handler: 'sendModule' },
 ];
 
 async function handleBossMode(messageText) {
@@ -511,6 +519,36 @@ async function executeBossCommand(handler, message) {
 
         case 'marketNews': return await bossAIChat("Give me the latest specialty coffee market news and trends relevant to a Malaysian roastery. Be concise.");
 
+        case 'dailyIntel': return await buildDailyIntel();
+
+        case 'sendCatalogue': {
+            const doc = DOCUMENT_LIBRARY.catalogue;
+            await sendWhatsAppDocument(BOSS_PHONE, doc.url, doc.filename, doc.caption);
+            return "📄 Sending you the Jpresso Coffee Catalogue 2026, Boss!";
+        }
+
+        case 'sendAcademy': {
+            await sendWhatsAppMessage(BOSS_PHONE, ACADEMY_INFO);
+            const sample = DOCUMENT_LIBRARY.academy_1_1;
+            await sendWhatsAppDocument(BOSS_PHONE, sample.url, sample.filename, "📚 Sample — Module 1.1: Anatomy of Bean & Terroir");
+            return "📚 Academy overview + sample module sent!";
+        }
+
+        case 'sendModule': {
+            const moduleMatch = message.match(/module\s*(\d+)[\.\s]*(\d+)?/i);
+            if (moduleMatch) {
+                const phase = moduleMatch[1];
+                const mod = moduleMatch[2] || '1';
+                const key = `academy_${phase}_${mod}`;
+                const doc = DOCUMENT_LIBRARY[key];
+                if (doc && doc.url) {
+                    await sendWhatsAppDocument(BOSS_PHONE, doc.url, doc.filename, doc.caption);
+                    return `📚 Sending ${doc.filename}!`;
+                }
+            }
+            return "Module not found. Available: 1.1-1.4, 2.1-2.4, 3.1-3.3";
+        }
+
         default: return await bossAIChat(message);
     }
 }
@@ -530,6 +568,71 @@ async function supabaseReport(table, header, buildQuery, formatData) {
     }
 }
 
+async function buildDailyIntel() {
+    const today = new Date().toLocaleDateString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    let report = `📋 DAILY INTEL BRIEFING\n${today}\n━━━━━━━━━━━━━━━\n`;
+
+    try {
+        // Latest cron run
+        const cronRes = await fetch(`${SUPABASE_URL}/rest/v1/cron_logs?select=*&order=run_date.desc&limit=1`, {
+            headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+        });
+        const cronData = await cronRes.json();
+        if (cronData.length > 0) {
+            const c = cronData[0];
+            report += `\n🤖 AGENT RUN: ${c.target_area}\n`;
+            report += `   Leads: ${c.leads_found} | Hot: ${c.hot_leads} | ${c.status === 'success' ? '✅' : '❌'}\n`;
+        }
+
+        // Today's hot leads
+        const leadsRes = await fetch(`${SUPABASE_URL}/rest/v1/leads?select=business_name,location,phone,priority_score&priority_score=gte.7&order=created_at.desc&limit=5`, {
+            headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+        });
+        const leadsData = await leadsRes.json();
+        if (leadsData.length > 0) {
+            report += `\n🔥 TOP HOT LEADS:\n`;
+            for (const l of leadsData) {
+                report += `• ${l.business_name} (${l.location || '—'}) — ${l.priority_score}/10\n`;
+                if (l.phone && l.phone !== 'Not found - needs manual lookup') report += `  📞 ${l.phone}\n`;
+            }
+        }
+
+        // Pipeline summary
+        const pipeRes = await fetch(`${SUPABASE_URL}/rest/v1/leads?select=contacted,response_received,converted,not_interested`, {
+            headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+        });
+        const pipeData = await pipeRes.json();
+        if (pipeData.length > 0) {
+            const total = pipeData.length;
+            const contacted = pipeData.filter(l => l.contacted).length;
+            const responded = pipeData.filter(l => l.response_received).length;
+            const converted = pipeData.filter(l => l.converted).length;
+            report += `\n📊 PIPELINE: ${total} total → ${contacted} contacted → ${responded} responded → ${converted} converted\n`;
+        }
+
+        // Green bean stock warnings
+        const stockRes = await fetch(`${SUPABASE_URL}/rest/v1/inventory?select=bean_name,stock_kg&sku=not.ilike.*Roasted*&stock_kg=lt.5&order=stock_kg.asc`, {
+            headers: { 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+        });
+        const stockData = await stockRes.json();
+        if (stockData.length > 0) {
+            report += `\n⚠️ LOW STOCK:\n`;
+            for (const s of stockData) {
+                report += `• ${s.bean_name}: ${parseFloat(s.stock_kg).toFixed(1)}kg\n`;
+            }
+        }
+
+        // Cost today
+        report += `\n💰 API: RM ${dailyUsage.costMYR.toFixed(2)} today | RM ${monthlyUsage.costMYR.toFixed(2)} month\n`;
+
+        report += `\n━━━━━━━━━━━━━━━\nFull details: roastery-os.onrender.com`;
+        return report;
+
+    } catch (err) {
+        return report + `\n❌ Error building intel: ${err.message}`;
+    }
+}
+
 async function bossAIChat(message) {
     // Before using AI, try to detect if Boss is asking for data
     const dataKeywords = /(lead|cron|revenue|sales|batch|customer|pipeline|inventory|stock|report|status|how many|show me|give me|what)/i;
@@ -542,6 +645,7 @@ async function bossAIChat(message) {
         if (/customer/i.test(message)) return await executeBossCommand('customerReport', message);
         if (/pipeline|funnel|conversion/i.test(message)) return await executeBossCommand('pipelineReport', message);
         if (/inventory|stock/i.test(message)) return await executeBossCommand('inventoryReport', message);
+        if (/daily|briefing|morning|today.*update/i.test(message)) return await executeBossCommand('dailyIntel', message);
     }
 
     try {
