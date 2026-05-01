@@ -1462,17 +1462,42 @@ async function routeToAgentTeam(senderId, messageText, senderName, memory) {
 // ==========================================
 async function generateThreeDrafts() {
     const drafts = [];
-    const angles = [
-        { direction: "SOPHIA PERSONAL RECOMMENDATION — recommend a bean. Lead with 500g. Include https://bloomdaily.io/subscribe.html", photo_hint: "sophia_speaks OR sophia_drinks OR product_showcase" },
-        { direction: "BEHIND-THE-SCENES CRAFT — Garanti/Santoker/48hr fresh. Build authority.", photo_hint: "roasting_craft OR sophia_roasts OR founders_story" },
-        { direction: "LIFESTYLE / MORNING RITUAL — cozy KL scenario. Weber's Law upsell. Include https://bloomdaily.io/subscribe.html", photo_hint: "sophia_lifestyle OR brewing_craft OR lifestyle" }
+
+    // 🔄 BEAN ROTATION — pick 3 different beans each day, never repeat Moon White every time
+    const allBeans = [
+        "Moon White Blend", "Phoenix Das Blend", "Cham Velvet Blend", "Emerald White Blend",
+        "Babydas Blend", "Sunrise Walker Blend", "Sunrise Dreamer Blend",
+        "Ethiopia Yirgacheffe Aricha", "Ethiopia Yirgacheffe Amederaro", "Ethiopia Lekempti",
+        "Colombia Supremo", "Brazil Santos", "Guatemala Antigua", "Guatemala Huehuetenango",
+        "Sumatra Mandheling", "El Salvador La Fany", "Indonesia Mount Kerinci"
     ];
+
+    // Shuffle and pick 3 different beans
+    const shuffled = allBeans.sort(() => Math.random() - 0.5);
+    const todaysBeans = shuffled.slice(0, 3);
+
+    const angles = [
+        { direction: `SOPHIA PERSONAL RECOMMENDATION — Feature "${todaysBeans[0]}" specifically. Describe its unique tasting notes and why you love it. Lead with 500g pricing. Include https://bloomdaily.io/subscribe.html`, photo_hint: "sophia_speaks OR sophia_drinks OR product_showcase" },
+        { direction: `BEHIND-THE-SCENES CRAFT — Feature "${todaysBeans[1]}" and tell the story of how it's roasted. Mention which roaster (Garanti drum or Santoker air) suits this bean. 48hr fresh. Build authority.`, photo_hint: "roasting_craft OR sophia_roasts OR founders_story" },
+        { direction: `LIFESTYLE / MORNING RITUAL — Feature "${todaysBeans[2]}" in a cozy KL morning scenario. What brewing method suits it best? Weber's Law upsell on 500g. Include https://bloomdaily.io/subscribe.html`, photo_hint: "sophia_lifestyle OR brewing_craft OR lifestyle" }
+    ];
+
+    console.log(`🎨 Today's featured beans: ${todaysBeans.join(', ')}`);
 
     for (let i = 0; i < 3; i++) {
         try {
             const post = await anthropic.messages.create({
                 model: ACTIVE_MODEL, max_tokens: 500,
-                system: `You are Sophia writing for Jpresso IG + FB.\nVOICE: First-person. You ARE Sophia.\nPRODUCT CONTEXT: ${JPRESSO_PRODUCTS}\nCAPTION RULES: Under 150 words, Manglish, 5-8 emojis, 8-10 hashtags. CTA to bloomdaily.io. Lead with 500g.\nEND WITH: PHOTO_THEMES: [relevant themes]`,
+                system: `You are Sophia writing for Jpresso IG + FB.
+VOICE: First-person. You ARE Sophia.
+PRODUCT CONTEXT: ${JPRESSO_PRODUCTS}
+CAPTION RULES:
+- Under 150 words, Manglish, 5-8 emojis, 8-10 hashtags
+- CTA to bloomdaily.io
+- Lead with 500g as smart choice
+- IMPORTANT: Feature the SPECIFIC bean mentioned in the direction. Do NOT default to Moon White unless it is the specified bean.
+- Include the bean's actual tasting notes and pricing from the product context above
+END WITH: PHOTO_THEMES: [relevant themes]`,
                 messages: [{ role: "user", content: `Write ONE caption. ${angles[i].direction}\n\nPhoto themes: ${angles[i].photo_hint}` }]
             });
             if (post.usage) await trackAPIUsage(post.usage.input_tokens || 0, post.usage.output_tokens || 0, "marketing_draft");
